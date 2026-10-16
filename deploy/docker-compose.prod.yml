@@ -141,6 +141,7 @@ services:
             fi
           done
         fi
+        bench --site "${DOMAIN}" enable-scheduler || echo "WARNING: could not enable scheduler"
         bench --site "${DOMAIN}" execute frappe.db.set_single_value --args "['System Settings','time_zone','Asia/Tokyo']" || echo "WARNING: could not set time zone"
         exit 0
     environment:

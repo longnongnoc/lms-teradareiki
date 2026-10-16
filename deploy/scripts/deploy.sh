@@ -8,7 +8,7 @@ ENV_FILE=/opt/lms/.env
 SECRETS_FILE=/opt/lms/secrets.env
 STATE_FILE=/opt/lms/deployed-image-id
 LOCK_FILE=/var/lock/lms-deploy.lock
-HEALTH_TIMEOUT=600
+HEALTH_TIMEOUT=900
 COMPOSE_FILE="$REPO_DIR/deploy/docker-compose.prod.yml"
 
 log() { printf '[deploy %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
@@ -83,9 +83,11 @@ dump_diagnostics() {
 }
 
 wait_healthy() {
-  local deadline cid state
+  local deadline cid state ping_ok=no created=no
   deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
   while (( $(date +%s) < deadline )); do
+    created=no
+    state=
     cid=$(dc ps -a -q create-site 2>/dev/null || true)
     if [[ -n $cid ]]; then
       state=$(docker inspect -f '{{.State.Status}} {{.State.ExitCode}}' "$cid" 2>/dev/null || true)
@@ -93,15 +95,18 @@ wait_healthy() {
         dump_diagnostics
         die "create-site failed ($state)"
       fi
+      if [[ $state == "exited 0" ]]; then created=yes; fi
     fi
-    if site_ping; then
+    ping_ok=no
+    if site_ping; then ping_ok=yes; fi
+    if [[ $ping_ok == yes && $created == yes ]]; then
       log "site $DOMAIN is healthy"
       return 0
     fi
     sleep 10
   done
   dump_diagnostics
-  die "site did not become healthy within ${HEALTH_TIMEOUT}s"
+  die "site did not become healthy within ${HEALTH_TIMEOUT}s (site_ping ok: $ping_ok, create-site exited 0: $created, create-site state: ${state:-none})"
 }
 
 migrate_if_image_changed() {
