@@ -19,3 +19,11 @@ test-results
 playwright-report
 blob-report
 playwright/.auth
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+backend.hcl
+crash.log

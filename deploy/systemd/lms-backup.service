@@ -1,0 +1,10 @@
+[Unit]
+Description=LMS backup to S3
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/lms/.env
+ExecStart=/opt/lms-repo/deploy/scripts/backup.sh
+SyslogIdentifier=lms-backup

@@ -1,0 +1,80 @@
+#!/bin/bash
+set -euxo pipefail
+
+exec > >(tee -a /var/log/lms-bootstrap.log) 2>&1
+trap 'echo "bootstrap failed at line $LINENO (exit $?)" >&2' ERR
+
+export HOME=/root
+
+dnf install -y docker git amazon-cloudwatch-agent
+systemctl enable --now docker
+
+COMPOSE_VERSION="v2.29.7"
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-linux-x86_64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+docker compose version
+
+if [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count=2048
+  chmod 600 /swapfile
+  mkswap /swapfile
+fi
+swapon /swapfile || true
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
+sysctl -p /etc/sysctl.d/99-swappiness.conf
+
+mkdir -p /opt/lms
+umask 077
+cat > /opt/lms/.env <<'ENVEOF'
+DOMAIN=${domain}
+AWS_REGION=${aws_region}
+BACKUP_BUCKET=${backup_bucket}
+LMS_IMAGE=${lms_image}
+SSM_DB_ROOT_PASSWORD_PARAM=${ssm_db_root_password_param}
+SSM_ADMIN_PASSWORD_PARAM=${ssm_admin_password_param}
+REPO_URL=${repo_url}
+ACME_EMAIL=${acme_email}
+ENVEOF
+chmod 600 /opt/lms/.env
+umask 022
+
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'CWEOF'
+{
+  "metrics": {
+    "append_dimensions": {
+      "InstanceId": "$${aws:InstanceId}"
+    },
+    "metrics_collected": {
+      "mem": {
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
+      },
+      "disk": {
+        "measurement": ["used_percent"],
+        "resources": ["/"],
+        "drop_device": true,
+        "metrics_collection_interval": 60
+      }
+    }
+  }
+}
+CWEOF
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+if [ ! -d /opt/lms-repo/.git ]; then
+  git clone "${repo_url}" /opt/lms-repo
+fi
+git -C /opt/lms-repo fetch --all --prune
+git -C /opt/lms-repo checkout "${deploy_ref}"
+git -C /opt/lms-repo pull --ff-only origin "${deploy_ref}" || true
+
+if ! bash /opt/lms-repo/deploy/scripts/deploy.sh "${deploy_ref}"; then
+  echo "deploy.sh failed, see log above" >&2
+  exit 1
+fi
+
+echo "bootstrap complete"
