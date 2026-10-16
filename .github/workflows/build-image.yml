@@ -1,6 +1,10 @@
 name: Build LMS image
 
 on:
+  push:
+    branches: [feature/deploy-aws-terraform]
+    paths:
+      - ".github/workflows/build-image.yml"
   workflow_dispatch:
     inputs:
       lms_url:
@@ -35,10 +39,10 @@ jobs:
     steps:
       - name: Validate inputs and compute image name
         env:
-          LMS_URL: ${{ inputs.lms_url }}
-          LMS_REF: ${{ inputs.lms_ref }}
-          PAYMENTS_REF: ${{ inputs.payments_ref }}
-          FRAPPE_BRANCH: ${{ inputs.frappe_branch }}
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
+          FRAPPE_BRANCH: ${{ inputs.frappe_branch || 'version-16' }}
           IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
           OWNER: ${{ github.repository_owner }}
         run: |
@@ -77,9 +81,9 @@ jobs:
 
       - name: Write apps.json
         env:
-          LMS_URL: ${{ inputs.lms_url }}
-          LMS_REF: ${{ inputs.lms_ref }}
-          PAYMENTS_REF: ${{ inputs.payments_ref }}
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
         run: |
           jq -n \
             --arg payments_ref "$PAYMENTS_REF" \
@@ -108,7 +112,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
           build-args: |
-            FRAPPE_BRANCH=${{ inputs.frappe_branch }}
+            FRAPPE_BRANCH=${{ inputs.frappe_branch || 'version-16' }}
           secret-files: |
             apps_json=apps.json
           labels: |
