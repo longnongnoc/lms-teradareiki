@@ -19,9 +19,14 @@ Infrastructure (EC2, S3, SSM parameters) lives in `infra/`.
 3. The script reads `/opt/lms/.env`, checks out the ref, writes `/opt/lms/secrets.env`
    from SSM (mode 600), pulls images, runs `up -d`, waits up to 10 minutes for
    `/api/method/ping`, and runs `bench migrate` when the image changed.
-4. The site is created once by `create-site`; later runs skip it.
+4. The site is created by `create-site`. If the site already exists, it installs any
+   missing `payments` or `lms` app, so a partially created site is repaired.
 
 The DB root password only takes effect when the `db-data` volume is first created.
+
+## LMS image
+
+The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/longnongnoc/terada-lms`. The GHCR package must be public so the instance can pull it anonymously.
 
 ## Logs
 

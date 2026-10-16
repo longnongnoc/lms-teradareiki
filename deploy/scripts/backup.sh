@@ -5,6 +5,12 @@ set -euo pipefail
 log() { printf '[backup %s] %s\n' "$(date -u +%H:%M:%S)" "$*"; }
 die() { log "ERROR: $*" >&2; exit 1; }
 
+if [[ -z ${DOMAIN:-} && -r /opt/lms/.env ]]; then
+  set -a
+  . /opt/lms/.env
+  set +a
+fi
+
 : "${DOMAIN:?}" "${AWS_REGION:?}" "${BACKUP_BUCKET:?}"
 
 BENCH_DIR=/home/frappe/frappe-bench

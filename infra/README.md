@@ -31,6 +31,12 @@ starts the CloudWatch agent and runs `deploy/scripts/deploy.sh <deploy_ref>`.
 Log: `/var/log/lms-bootstrap.log` on the instance. `user_data` and `ami` changes are
 ignored after creation, so later deploys go through SSM (CI) and not re-creation.
 
+## LMS image
+
+The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/longnongnoc/terada-lms`. The GHCR package must be public so the instance can pull it anonymously.
+
+Run the workflow before the first `terraform apply`, and keep `lms_image` in sync with the tag it pushed.
+
 ## 3. Outputs
 
 `terraform output` shows instance_id, elastic_ip, domain_name, backup_bucket,

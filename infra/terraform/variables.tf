@@ -45,7 +45,7 @@ variable "deploy_ref" {
 
 variable "lms_image" {
   type    = string
-  default = "ghcr.io/frappe/lms:v2.65.0"
+  default = "ghcr.io/longnongnoc/terada-lms:v2.65.0"
 }
 
 variable "backup_retention_days" {

@@ -129,12 +129,20 @@ services:
         wait-for-it -t 120 db:3306
         wait-for-it -t 120 redis-cache:6379
         wait-for-it -t 120 redis-queue:6379
-        if [ -d "sites/${DOMAIN}" ]; then
-          echo "Site ${DOMAIN} already exists, skipping creation"
-          exit 0
+        if [ ! -d "sites/${DOMAIN}" ]; then
+          bench new-site --mariadb-user-host-login-scope='%' --db-root-username=root --db-root-password="$$DB_ROOT_PASSWORD" --admin-password="$$ADMIN_PASSWORD" --install-app payments --install-app lms --set-default "${DOMAIN}"
+        else
+          echo "Site ${DOMAIN} already exists, checking installed apps"
+          installed=$$(bench --site "${DOMAIN}" list-apps)
+          for app in payments lms; do
+            if ! echo "$$installed" | grep -Eq "^$$app([[:space:]]|$$)"; then
+              echo "Installing missing app $$app"
+              bench --site "${DOMAIN}" install-app "$$app"
+            fi
+          done
         fi
-        bench new-site --mariadb-user-host-login-scope='%' --db-root-username=root --db-root-password="$$DB_ROOT_PASSWORD" --admin-password="$$ADMIN_PASSWORD" --install-app payments --install-app lms --set-default "${DOMAIN}"
         bench --site "${DOMAIN}" execute frappe.db.set_single_value --args "['System Settings','time_zone','Asia/Tokyo']" || echo "WARNING: could not set time zone"
+        exit 0
     environment:
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}

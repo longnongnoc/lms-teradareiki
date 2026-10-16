@@ -7,6 +7,6 @@ alert_email = "you@example.com"
 # root_volume_gb        = 30
 # repo_url              = "https://github.com/longnongnoc/lms-teradareiki.git"
 # deploy_ref            = "feature/deploy-aws-terraform"
-# lms_image             = "ghcr.io/frappe/lms:v2.65.0"
+# lms_image             = "ghcr.io/longnongnoc/terada-lms:v2.65.0"
 # backup_retention_days = 30
 # snapshot_retention    = 7
