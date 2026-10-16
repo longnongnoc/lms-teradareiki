@@ -109,6 +109,7 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
           build-args: |
             FRAPPE_BRANCH=${{ inputs.frappe_branch || 'version-16' }}
+            CACHE_BUST=${{ github.run_id }}
           secret-files: |
             apps_json=apps.json
           labels: |
