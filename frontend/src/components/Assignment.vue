@@ -133,6 +133,13 @@
 									</template>
 								</FileUploader>
 							</AssignmentUploadPrompt>
+							<img
+								v-if="attachment && assignment.data.type == 'Image'"
+								data-testid="assignment-image-preview"
+								:src="safeUrl(attachment)"
+								:alt="attachment.split('/').pop()"
+								class="max-h-[32rem] rounded-4 border border-outline-gray-2"
+							/>
 						</template>
 						<div
 							v-else-if="
