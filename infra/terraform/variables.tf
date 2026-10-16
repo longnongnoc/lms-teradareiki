@@ -40,7 +40,7 @@ variable "repo_url" {
 
 variable "deploy_ref" {
   type    = string
-  default = "feature/deploy-aws-terraform"
+  default = "develop"
 }
 
 variable "lms_image" {

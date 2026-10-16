@@ -1,10 +1,6 @@
 name: Build LMS image
 
 on:
-  push:
-    branches: [feature/deploy-aws-terraform]
-    paths:
-      - ".github/workflows/build-image.yml"
   workflow_dispatch:
     inputs:
       lms_url:
