@@ -1,0 +1,4 @@
+bucket       = "terada-lms-tfstate-<ACCOUNT_ID>"
+key          = "terada-lms/terraform.tfstate"
+region       = "ap-northeast-1"
+use_lockfile = true

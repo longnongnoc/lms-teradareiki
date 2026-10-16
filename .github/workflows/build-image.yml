@@ -1,0 +1,140 @@
+name: Build LMS image
+
+on:
+  workflow_dispatch:
+    inputs:
+      lms_url:
+        description: LMS git repository URL
+        type: string
+        default: https://github.com/frappe/lms
+      lms_ref:
+        description: LMS branch or tag
+        type: string
+        default: v2.65.0
+      payments_ref:
+        description: Payments branch or tag
+        type: string
+        default: version-16
+      frappe_branch:
+        description: Frappe branch
+        type: string
+        default: version-16
+      image_tag:
+        description: Image tag (empty uses lms_ref)
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Validate inputs and compute image name
+        env:
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
+          FRAPPE_BRANCH: ${{ inputs.frappe_branch || 'version-16' }}
+          IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          safe='^[A-Za-z0-9._/:-]+$'
+          for name in LMS_URL LMS_REF PAYMENTS_REF FRAPPE_BRANCH; do
+            value="${!name}"
+            if [[ ! "$value" =~ $safe ]]; then
+              echo "Invalid value for $name" >&2
+              exit 1
+            fi
+          done
+          if [[ -n "$IMAGE_TAG_INPUT" && ! "$IMAGE_TAG_INPUT" =~ $safe ]]; then
+            echo "Invalid value for image_tag" >&2
+            exit 1
+          fi
+          if [[ "$LMS_URL" != https://github.com/* ]]; then
+            echo "lms_url must start with https://github.com/" >&2
+            exit 1
+          fi
+          tag="${IMAGE_TAG_INPUT:-$LMS_REF}"
+          tag="${tag//\//-}"
+          if [[ ! "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "Computed image tag is not a valid Docker tag: $tag" >&2
+            exit 1
+          fi
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE=ghcr.io/${owner}/terada-lms" >> "$GITHUB_ENV"
+          echo "TAG=${tag}" >> "$GITHUB_ENV"
+
+      - name: Checkout frappe_docker
+        uses: actions/checkout@v4
+        with:
+          repository: frappe/frappe_docker
+          path: builds
+
+      - name: Write apps.json
+        env:
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
+        run: |
+          jq -n \
+            --arg payments_ref "$PAYMENTS_REF" \
+            --arg lms_url "$LMS_URL" \
+            --arg lms_ref "$LMS_REF" \
+            '[{url: "https://github.com/frappe/payments", branch: $payments_ref}, {url: $lms_url, branch: $lms_ref}]' \
+            > apps.json
+          cat apps.json
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: builds
+          file: builds/images/layered/Containerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          build-args: |
+            FRAPPE_BRANCH=${{ inputs.frappe_branch || 'version-16' }}
+          secret-files: |
+            apps_json=apps.json
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          out="$(docker run --rm --entrypoint bash "$IMAGE:$TAG" -c "cd /home/frappe/frappe-bench && cat sites/apps.txt; ls apps")"
+          echo "$out"
+          apps="$(docker run --rm --entrypoint bash "$IMAGE:$TAG" -c "cd /home/frappe/frappe-bench && ls apps")"
+          for app in lms payments; do
+            if ! grep -qx "$app" <<< "$apps"; then
+              echo "App $app is missing from the image" >&2
+              exit 1
+            fi
+          done
+
+      - name: Summary
+        run: |
+          {
+            echo "### Image pushed"
+            echo
+            echo "\`$IMAGE:$TAG\`"
+            echo
+            echo "Set the GHCR package to public so the instance can pull it anonymously."
+          } >> "$GITHUB_STEP_SUMMARY"
