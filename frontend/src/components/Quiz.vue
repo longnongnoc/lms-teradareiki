@@ -448,7 +448,8 @@
 						</div>
 					</div>
 					<div
-						class="text-ink-gray-9 font-semibold mt-2 leading-5 break-words [&_img]:h-auto [&_img]:max-w-full"
+						ref="questionTextEl"
+						class="text-ink-gray-9 font-semibold mt-2 leading-5 break-words [&_img]:h-auto [&_img]:max-w-full [&_table]:my-2 [&_table]:border-collapse [&_td]:border [&_th]:border [&_td]:border-outline-gray-3 [&_th]:border-outline-gray-3 [&_td]:px-3 [&_th]:px-3 [&_td]:py-1.5 [&_th]:py-1.5 [&_td]:align-middle"
 						v-safe-html:rich="questionDetails.data.question"
 					></div>
 					<div
@@ -535,8 +536,24 @@
 							</Badge>
 						</div>
 					</div>
+					<div
+						v-else-if="questionDetails.data.type == 'Blanks'"
+						role="status"
+						class="my-2"
+					>
+						<Badge
+							v-if="showAnswers.length"
+							:theme="showAnswers.every((v) => !!v) ? 'green' : 'red'"
+							:label="
+								__('{0} of {1} correct').format(
+									showAnswers.filter((v) => !!v).length,
+									showAnswers.length
+								)
+							"
+						/>
+					</div>
 					<div v-else>
-						<RichTextEditor
+					<RichTextEditor
 							class="mt-4"
 							:content="possibleAnswer"
 							@change="(val) => (possibleAnswer = val)"
@@ -950,6 +967,7 @@ import {
 import {
 	computed,
 	inject,
+	nextTick,
 	onMounted,
 	onUnmounted,
 	reactive,
@@ -975,6 +993,10 @@ const attemptedQuestions = ref([])
 const reviewQuestions = ref([])
 const showSubmissionConfirmation = ref(false)
 const possibleAnswer = ref(null)
+// "Blanks" questions: one entry per [[n]] marker in the question text.
+const blankAnswers = ref([])
+// A template ref inside v-for is an array, hence the .flat() where it is read.
+const questionTextEl = ref(null)
 const timer = ref(0)
 let timerInterval = null
 const violationCount = ref(0)
@@ -1351,8 +1373,10 @@ const loadSavedAnswers = () => {
 							}
 						}
 					})
+				} else if (questionDetails.data.type == 'Blanks') {
+					blankAnswers.value = localAnswers.map((a) => a ?? '')
 				} else {
-					possibleAnswer.value = localAnswers[0]
+				possibleAnswer.value = localAnswers[0]
 				}
 			}
 		}
@@ -1486,8 +1510,10 @@ const getAnswers = () => {
 			if (selectedOptions.value[index])
 				answers.push(questionDetails.data[`option_${index + 1}`])
 		})
+	} else if (type == 'Blanks') {
+		answers.push(...blankAnswers.value)
 	} else {
-		answers.push(possibleAnswer.value)
+	answers.push(possibleAnswer.value)
 	}
 
 	return answers
@@ -1511,8 +1537,10 @@ const checkAnswer = () => {
 		auto: true,
 		onSuccess(data) {
 			let type = questionDetails.data.type
-			if (type == 'Choices') {
-				selectedOptions.value.forEach((option, index) => {
+			if (type == 'Blanks' && Array.isArray(data)) {
+				showAnswers.splice(0, showAnswers.length, ...data)
+			} else if (type == 'Choices') {
+			selectedOptions.value.forEach((option, index) => {
 					if (option) {
 						showAnswers[index] = option && data[index]
 					} else if (data[index] == 2) {
@@ -1572,6 +1600,7 @@ const resetQuestion = () => {
 	)
 	showAnswers.length = 0
 	possibleAnswer.value = null
+	blankAnswers.value = []
 }
 
 const submitQuiz = (reason = 'manual') => {
@@ -1645,6 +1674,7 @@ const resetQuiz = () => {
 	)
 	showAnswers.length = 0
 	possibleAnswer.value = null
+	blankAnswers.value = []
 	attemptedQuestions.value = []
 	reviewQuestions.value = []
 	quizSubmission.reset()
@@ -1661,8 +1691,65 @@ const getInstructions = (question) => {
 	if (question.type == 'Choices')
 		if (question.multiple) return __('Choose all answers that apply')
 		else return __('Choose one answer')
+	else if (question.type == 'Blanks') return __('Fill in each blank')
 	else return __('Type your answer')
-}
+	}
+
+	// Swap each [[n]] marker in the rendered question text for a text input, so a
+	// whole worksheet can be one question. Re-run to sync values and verdicts.
+	const mountBlanks = () => {
+		const root = [questionTextEl.value].flat()[0]
+		if (!root || questionDetails.data?.type != 'Blanks') return
+		if (!root.querySelector('input[data-blank]')) {
+			const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+			const nodes = []
+			while (walker.nextNode()) nodes.push(walker.currentNode)
+			let count = 0
+			for (const node of nodes) {
+				const parts = (node.nodeValue ?? '').split(/\[\[(\d+)\]\]/)
+				if (parts.length == 1) continue
+				const fragment = document.createDocumentFragment()
+				parts.forEach((part, i) => {
+					if (i % 2 == 0) return part && fragment.append(part)
+					const input = document.createElement('input')
+					input.type = 'text'
+					input.autocomplete = 'off'
+					input.dataset.blank = part
+					input.setAttribute('aria-label', __('Blank {0}').format(part))
+					input.className =
+						'mx-1 inline-block w-36 rounded border border-outline-gray-2 bg-surface-base px-2 py-0.5 text-p-base font-normal text-ink-gray-9'
+					input.addEventListener('input', () => {
+						blankAnswers.value[Number(part) - 1] = input.value
+					})
+					fragment.append(input)
+					count++
+				})
+				node.replaceWith(fragment)
+			}
+			blankAnswers.value = Array.from(
+				{ length: count },
+				(_, i) => blankAnswers.value[i] ?? ''
+			)
+		}
+		root.querySelectorAll('input[data-blank]').forEach((input) => {
+			const i = Number(input.dataset.blank) - 1
+			input.value = blankAnswers.value[i] ?? ''
+			input.disabled = !!showAnswers.length
+			const verdict = showAnswers.length ? showAnswers[i] : undefined
+			input.style.borderColor =
+				verdict === undefined
+					? ''
+					: verdict
+						? 'var(--ink-green-4)'
+						: 'var(--ink-red-5)'
+		})
+	}
+
+	watch(
+		[() => questionDetails.data, activeQuestion, () => [...showAnswers]],
+		() => nextTick(mountBlanks),
+		{ flush: 'post' }
+	)
 
 const markLessonProgress = () => {
 	let pathname = window.location.pathname.split('/')

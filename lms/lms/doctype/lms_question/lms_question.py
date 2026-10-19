@@ -1,6 +1,8 @@
 # Copyright (c) 2023, Frappe and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -30,6 +32,8 @@ def validate_correct_answers(question):
 		validate_correct_options(question)
 	elif question.type == "User Input":
 		validate_possible_answer(question)
+	elif question.type == "Blanks":
+		validate_blanks(question)
 
 
 def validate_duplicate_options(question):
@@ -62,6 +66,15 @@ def validate_possible_answer(question):
 				frappe.bold(question.question)
 			)
 		)
+
+
+def validate_blanks(question):
+	markers = re.findall(r"\[\[(\d+)\]\]", question.question or "")
+	lines = [line for line in (question.blank_answers or "").splitlines() if line.strip()]
+	if not markers or markers != [str(i) for i in range(1, len(markers) + 1)]:
+		frappe.throw(_("Mark the blanks in the question as [[1]], [[2]], ... in order."))
+	if len(lines) != len(markers):
+		frappe.throw(_("Give one line of accepted answers for each of the {0} blanks.").format(len(markers)))
 
 
 def update_question_title(question):
