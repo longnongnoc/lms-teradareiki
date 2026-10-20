@@ -17,6 +17,7 @@ extract_blank_ids = fill_blank.extract_blank_ids
 grade_fill_blank = fill_blank.grade_fill_blank
 apply_negative_marking = fill_blank.apply_negative_marking
 parse_submitted_answer = fill_blank.parse_submitted_answer
+clean_answer_text = fill_blank.clean_answer_text
 
 
 def _blank(blank_id, answers, marks=1):
@@ -251,6 +252,36 @@ class TestNegativeMarking:
 		assert graded["is_correct"] is False
 
 
+class TestCleanAnswerText:
+	def test_plain_text_is_only_trimmed(self):
+		assert clean_answer_text("  heat pump ") == "heat pump"
+		assert clean_answer_text("圧縮 機") == "圧縮 機"
+
+	def test_none_is_empty(self):
+		assert clean_answer_text(None) == ""
+
+	def test_non_text_is_coerced(self):
+		assert clean_answer_text(5) == "5"
+
+	def test_tags_comments_and_scripts_are_dropped(self):
+		assert clean_answer_text("<p>a <b>b</b></p>") == "a b"
+		assert clean_answer_text("<!-- c -->t") == "t"
+		assert clean_answer_text("<script>alert(1)</script>ok") == "ok"
+		assert clean_answer_text("<style>p{}</style>ok") == "ok"
+
+	def test_a_lone_less_than_is_kept(self):
+		assert clean_answer_text("x < 5") == "x < 5"
+		assert clean_answer_text("5 > 3") == "5 > 3"
+
+	def test_entities_are_not_decoded(self):
+		assert clean_answer_text("R&D &amp; &#65;") == "R&D &amp; &#65;"
+
+	def test_cleaning_twice_changes_nothing(self):
+		for value in ("<b>a</b>", "&lt;b&gt;", "x < 5", "  &amp;lt;  "):
+			once = clean_answer_text(value)
+			assert clean_answer_text(once) == once
+
+
 class TestParseSubmittedAnswer:
 	def test_json_string(self):
 		assert parse_submitted_answer('{"1": "圧縮機", "2": "b"}') == {"1": "圧縮機", "2": "b"}
@@ -270,6 +301,19 @@ class TestParseSubmittedAnswer:
 	def test_none_and_other_types(self):
 		assert parse_submitted_answer(None) == {}
 		assert parse_submitted_answer(["a"]) == {}
+
+	def test_values_are_trimmed(self):
+		raw = {"1": "  圧縮機\n", "2": "　x　"}
+		assert parse_submitted_answer(raw) == {"1": "圧縮機", "2": "x"}
+
+	def test_markup_is_stripped_from_values(self):
+		raw = {"1": "<b>圧縮機</b>", "2": "<img src=x onerror=alert(1)>ok", "3": "<script>alert(1)</script>y"}
+		assert parse_submitted_answer(raw) == {"1": "圧縮機", "2": "ok", "3": "y"}
+
+	def test_graded_answer_is_the_cleaned_one(self):
+		graded = grade_fill_blank([_blank("1", "圧縮機")], parse_submitted_answer({"1": " <i>圧縮機</i> "}))
+		assert graded["results"][0]["answer"] == "圧縮機"
+		assert graded["is_correct"] is True
 
 	def test_roundtrip_through_json_dumps(self):
 		stored = json.dumps({"1": "圧縮機"}, ensure_ascii=False)

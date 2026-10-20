@@ -9,6 +9,7 @@ Pure python on purpose: no frappe import, so the rules can be unit tested withou
 import json
 import re
 import unicodedata
+from html.parser import HTMLParser
 
 BLANK_ID = re.compile(r"[0-9]+")
 BLANK_TOKEN = re.compile(r"\[\[([0-9]+)\]\]")
@@ -22,6 +23,46 @@ _CJK_RANGES = (
 	r"\U00020000-\U0002ffff"
 )
 _SPACE_NEXT_TO_CJK = re.compile(rf"\s+(?=[{_CJK_RANGES}])|(?<=[{_CJK_RANGES}])\s+")
+
+
+class _TagStripper(HTMLParser):
+	"""Keeps the text of an answer and drops its markup. Entities are passed through as typed,
+	so cleaning an already clean answer changes nothing."""
+
+	def __init__(self):
+		super().__init__(convert_charrefs=False)
+		self.parts: list[str] = []
+		self._skipping = 0
+
+	def handle_starttag(self, tag, attrs):
+		if tag in ("script", "style"):
+			self._skipping += 1
+
+	def handle_endtag(self, tag):
+		if tag in ("script", "style") and self._skipping:
+			self._skipping -= 1
+
+	def handle_data(self, data):
+		if not self._skipping:
+			self.parts.append(data)
+
+	def handle_entityref(self, name):
+		self.handle_data(f"&{name};")
+
+	def handle_charref(self, name):
+		self.handle_data(f"&#{name};")
+
+
+def clean_answer_text(value) -> str:
+	"""A learner's text for one blank, stored as plain text: markup removed, ends trimmed.
+	A stray "<" that opens no tag, as in "x < 5", is kept."""
+	text = "" if value is None else str(value)
+	if "<" in text:
+		stripper = _TagStripper()
+		stripper.feed(text)
+		stripper.close()
+		text = "".join(stripper.parts)
+	return text.strip()
 
 
 def normalize_answer(text) -> str:
@@ -114,4 +155,4 @@ def parse_submitted_answer(raw) -> dict:
 			return {}
 	if not isinstance(raw, dict):
 		return {}
-	return {str(key): "" if value is None else str(value) for key, value in raw.items()}
+	return {str(key): clean_answer_text(value) for key, value in raw.items()}
