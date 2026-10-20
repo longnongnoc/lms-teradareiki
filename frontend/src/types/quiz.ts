@@ -1,15 +1,24 @@
 /** What `lms.lms.utils.get_quiz_with_questions` returns, as the quiz card reads it. */
 
-export type QuizQuestionType = 'Choices' | 'User Input' | 'Open Ended'
+export type QuizQuestionType =
+	| 'Choices'
+	| 'User Input'
+	| 'Fill Blank'
+	| 'Open Ended'
 
-/** One LMS Question. `option_N` / `explanation_N` run from 1 to 10. */
+/** One LMS Question. `option_N` / `option_N_image` / `explanation_N` run from 1 to 10. */
 export type QuizQuestionDetails = {
 	name: string
 	question: string
 	type: QuizQuestionType
 	multiple?: 0 | 1
+	// Fill Blank only: which blanks the body has and what each is worth. The
+	// accepted answers never reach the learner.
+	blanks?: { blank_id: string; marks?: number }[]
 } & {
-	[key: `option_${number}` | `explanation_${number}`]: string | null | undefined
+	[
+		key: `option_${number}` | `option_${number}_image` | `explanation_${number}`
+	]: string | null | undefined
 }
 
 /** A row of the quiz's question table. */
@@ -19,6 +28,8 @@ export interface QuizQuestionRow {
 	marks?: number
 	// Copied from the question when the quiz is saved.
 	type?: QuizQuestionType
+	// Section title. Adjacent rows sharing one form a section.
+	group?: string | null
 }
 
 export interface QuizDetails {
@@ -27,6 +38,7 @@ export interface QuizDetails {
 	duration: number
 	questions?: QuizQuestionRow[]
 	passing_percentage?: number
+	practical_max_marks?: number
 	max_attempts?: number
 	show_answers?: 0 | 1
 	show_submission_history?: 0 | 1

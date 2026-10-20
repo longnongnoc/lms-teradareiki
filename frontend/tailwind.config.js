@@ -30,6 +30,27 @@ export default {
 	],
 	theme: {
 		extend: {
+			// Tailwind's default sans stack plus CJK system fonts before the generic
+			// `sans-serif`, which would otherwise end the stack. frappe-ui's base layer
+			// prepends InterVar to this value; preflight makes form controls inherit it.
+			fontFamily: {
+				sans: [
+					'ui-sans-serif',
+					'system-ui',
+					'"Hiragino Sans"',
+					'"Hiragino Kaku Gothic ProN"',
+					'"Yu Gothic UI"',
+					'"Yu Gothic"',
+					'Meiryo',
+					'"Noto Sans JP"',
+					'"Noto Sans CJK JP"',
+					'sans-serif',
+					'"Apple Color Emoji"',
+					'"Segoe UI Emoji"',
+					'"Segoe UI Symbol"',
+					'"Noto Color Emoji"',
+				],
+			},
 			strokeWidth: {
 				1.5: '1.5',
 			},

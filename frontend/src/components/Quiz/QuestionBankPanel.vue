@@ -102,7 +102,7 @@ import { useDebounceFn } from '@vueuse/core'
 
 const props = defineProps({
 	quizName: { type: String, required: true },
-	// '' | 'Choices' | 'User Input' | 'Open Ended'
+	// '' | 'Choices' | 'User Input' | 'Fill Blank' | 'Open Ended'
 	initialType: { type: String, default: '' },
 	// Every question in the quiz's local list, staged rows included.
 	inQuizQuestionNames: { type: Array, default: () => [] },
@@ -161,11 +161,16 @@ const typeFilterMenu = computed(() => [
 		onClick: () => (typeFilter.value = 'Choices'),
 	},
 	{ label: __('User input'), onClick: () => (typeFilter.value = 'User Input') },
+	{
+		label: __('Fill in the Blanks'),
+		onClick: () => (typeFilter.value = 'Fill Blank'),
+	},
 	{ label: __('Open ended'), onClick: () => (typeFilter.value = 'Open Ended') },
 ])
 const activeTypeLabel = computed(() => {
 	if (typeFilter.value === 'Choices') return __('Choices')
 	if (typeFilter.value === 'User Input') return __('User input')
+	if (typeFilter.value === 'Fill Blank') return __('Fill in the Blanks')
 	if (typeFilter.value === 'Open Ended') return __('Open ended')
 	return __('All types')
 })

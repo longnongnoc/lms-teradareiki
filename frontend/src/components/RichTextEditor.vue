@@ -136,6 +136,9 @@ const editorRef = useTemplateRef<InstanceType<typeof Editor>>('editorRef')
 
 defineExpose({
 	focus: () => editorRef.value?.editor?.commands.focus('end'),
+	// At the cursor (or over the selection), then focus stays in the editor.
+	insertText: (text: string) =>
+		editorRef.value?.editor?.chain().focus().insertContent(text).run(),
 })
 
 const toolbar = [

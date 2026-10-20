@@ -14,6 +14,11 @@ vi.mock('frappe-ui', () => ({
 	Dropdown: { template: '<div><slot /></div>' },
 	FormControl: { template: '<input />' },
 	FormLabel: { template: '<label />' },
+	FileUploader: {
+		template: '<div><slot :openFileSelector="() => {}" /></div>',
+	},
+	Checkbox: { template: '<input type="checkbox" />' },
+	toast: { error: () => {} },
 }))
 
 vi.mock('@/components/RichTextEditor.vue', () => ({

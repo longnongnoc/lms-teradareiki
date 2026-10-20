@@ -1,6 +1,14 @@
-// Everything the authoring UI needs about one question: the four author-facing
-// types and how they map onto the backend's three `type` values plus
+// Everything the authoring UI needs about one question: the five author-facing
+// types and how they map onto the backend's four `type` values plus
 // `multiple`, and the mandatory-field rule.
+
+import { hasValidBlanks } from '@/utils/fillBlank'
+import {
+	isOptionPresent,
+	isReservedOptionText,
+	optionImage,
+	optionText,
+} from '@/utils/optionKey'
 
 // `__` is a global set by the translation plugin at app init, and this module
 // is evaluated at import time, which can run first. Resolve lazily with a
@@ -39,6 +47,16 @@ export const QUESTION_TYPES = [
 			return __('Auto-graded')
 		},
 		icon: 'lucide-text-cursor-input',
+	},
+	{
+		value: 'fill_blank',
+		get label() {
+			return __('Fill in the Blanks')
+		},
+		get description() {
+			return __('Auto-graded, several blanks')
+		},
+		icon: 'lucide-brackets',
 	},
 	{
 		value: 'open_ended',
@@ -83,6 +101,7 @@ export const blankOptionFields = () => {
 	const fields = {}
 	for (let i = 1; i <= MAX_OPTIONS; i++) {
 		fields[`option_${i}`] = null
+		fields[`option_${i}_image`] = ''
 		fields[`is_correct_${i}`] = 0
 		fields[`explanation_${i}`] = null
 		fields[`possibility_${i}`] = null
@@ -94,8 +113,12 @@ export const blankOptionFields = () => {
 export const marksLabel = (n) =>
 	Number(n) === 1 ? __('1 mark') : __('{0} marks').format(n)
 
+export const blanksLabel = (n) =>
+	Number(n) === 1 ? __('1 blank') : __('{0} blanks').format(n)
+
 export function toUiType(question) {
 	if (question?.type === 'User Input') return 'user_input'
+	if (question?.type === 'Fill Blank') return 'fill_blank'
 	if (question?.type === 'Open Ended') return 'open_ended'
 	return question?.multiple ? 'multiple' : 'single'
 }
@@ -118,6 +141,8 @@ export function toBackendType(uiValue) {
 			return { type: 'Choices', multiple: 1 }
 		case 'user_input':
 			return { type: 'User Input', multiple: 0 }
+		case 'fill_blank':
+			return { type: 'Fill Blank', multiple: 0 }
 		case 'open_ended':
 			return { type: 'Open Ended', multiple: 0 }
 		case 'single':
@@ -128,6 +153,10 @@ export function toBackendType(uiValue) {
 
 export function isChoice(uiValue) {
 	return uiValue === 'single' || uiValue === 'multiple'
+}
+
+export function isFillBlank(uiValue) {
+	return uiValue === 'fill_blank'
 }
 
 // The backend rejects a quiz that mixes Open Ended with any other type (LMS
@@ -173,17 +202,52 @@ const filled = (value) => Boolean(value && String(value).trim())
 export const REQUIRED_OPTIONS = 2
 export const REQUIRED_POSSIBILITIES = 1
 
-// option_1 and option_2 by name, not any two: validate_minimum_options names those
-// two fields, so a question filled from option_2 down would pass a count-based test
-// here and throw on save.
+// An option is present when it has text or an image; two present options are the
+// minimum, wherever they sit.
+export const isOptionSlotPresent = (question, slot) =>
+	isOptionPresent(optionText(question, slot), optionImage(question, slot))
+
+export const countPresentOptions = (question) =>
+	Array.from({ length: MAX_OPTIONS }, (_, i) =>
+		isOptionSlotPresent(question, i + 1)
+	).filter(Boolean).length
+
 export const hasRequiredOptions = (question) =>
-	Array.from({ length: REQUIRED_OPTIONS }, (_, i) =>
-		filled(question?.[`option_${i + 1}`])
-	).every(Boolean)
+	countPresentOptions(question) >= REQUIRED_OPTIONS
+
+// Slots whose text is reserved for image keys, whose twin (same text and image)
+// sits in an earlier slot, or that carry a correct flag with nothing to choose.
+export const optionProblems = (question) => {
+	const reserved = []
+	const duplicates = []
+	const emptyCorrect = []
+	const seen = new Set()
+	for (let slot = 1; slot <= MAX_OPTIONS; slot++) {
+		const text = optionText(question, slot)
+		const image = optionImage(question, slot).trim()
+		if (isReservedOptionText(text)) reserved.push(slot)
+		if (!isOptionSlotPresent(question, slot)) {
+			if (question?.[`is_correct_${slot}`]) emptyCorrect.push(slot)
+			continue
+		}
+		const signature = `${text.trim()}\u0000${image}`
+		if (seen.has(signature)) duplicates.push(slot)
+		seen.add(signature)
+	}
+	return { reserved, duplicates, emptyCorrect }
+}
+
+export const hasValidOptionContent = (question) => {
+	const { reserved, duplicates, emptyCorrect } = optionProblems(question)
+	return !reserved.length && !duplicates.length && !emptyCorrect.length
+}
 
 export const countCorrectOptions = (question) =>
 	Array.from({ length: MAX_OPTIONS }, (_, i) =>
-		Boolean(question?.[`is_correct_${i + 1}`])
+		Boolean(
+			question?.[`is_correct_${i + 1}`] &&
+			isOptionSlotPresent(question, i + 1)
+		)
 	).filter(Boolean).length
 
 // validate_correct_options re-derives `multiple` from this count, so one correct
@@ -207,10 +271,14 @@ export const isQuestionValid = (question, uiType) => {
 	if (isChoice(uiType))
 		return (
 			hasRequiredOptions(question) &&
+			hasValidOptionContent(question) &&
 			hasRequiredCorrectOptions(question, uiType)
 		)
 
 	if (uiType === 'user_input') return hasRequiredPossibilities(question)
+
+	if (uiType === 'fill_blank')
+		return hasValidBlanks(question.question, question.blanks)
 
 	// open_ended: the question text is the only requirement.
 	return true

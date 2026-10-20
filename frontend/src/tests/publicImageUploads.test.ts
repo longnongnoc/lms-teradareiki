@@ -299,6 +299,8 @@ const MANIFEST: Record<string, Privacy[]> = {
 	'components/Modals/JobApplicationModal.vue': ['private'],
 	'pages/Forms/ChapterForm.vue': ['private'],
 	'components/Notes/Notes.vue': ['private'],
+	// A quiz option image is served through the gated question resource endpoint.
+	'components/Quiz/QuestionAnswers.vue': ['private'],
 	// A gateway's attachment keeps the privacy SettingsFields gave it before the
 	// form was hand-rolled: get_transformed_fields sets no `public` flag on any
 	// of them, so `:is_private="true"` here is what keeps it private.

@@ -128,11 +128,7 @@ export type SafeHtmlLevel = keyof typeof SAFE_HTML_LEVELS
 
 // An unknown or absent level renders at the strictest profile. Too strict is a
 // visible rendering bug someone reports; too loose is an XSS nobody sees.
-export const sanitizeAt = (
-	level: string | undefined,
-	html?: string | null
-): string => {
-	if (!html) return ''
+const configFor = (level: string | undefined): Config => {
 	const known = level && level in SAFE_HTML_LEVELS
 	if (!known && import.meta.env.DEV) {
 		console.warn(
@@ -140,6 +136,26 @@ export const sanitizeAt = (
 				`${Object.keys(SAFE_HTML_LEVELS).join(', ')} — falling back to "bio"`
 		)
 	}
-	const config = SAFE_HTML_LEVELS[(known ? level : 'bio') as SafeHtmlLevel]
-	return purifier.sanitize(html, config)
+	return SAFE_HTML_LEVELS[(known ? level : 'bio') as SafeHtmlLevel]
 }
+
+export const sanitizeAt = (
+	level: string | undefined,
+	html?: string | null
+): string => {
+	if (!html) return ''
+	return purifier.sanitize(html, configFor(level))
+}
+
+// The same profiles, handed back as DOM nodes rather than a string. A caller
+// that has to change the sanitized markup (swap a token for a control, say) does
+// it on these nodes, so the result is never serialised and parsed a second time.
+// The fragment belongs to an inert document; appending it to the page adopts it.
+export const sanitizeAtFragment = (
+	level: string | undefined,
+	html?: string | null
+): DocumentFragment =>
+	purifier.sanitize(html ?? '', {
+		...configFor(level),
+		RETURN_DOM_FRAGMENT: true,
+	})

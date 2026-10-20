@@ -169,6 +169,13 @@
 				</EmptyStateLayout>
 
 				<template v-else-if="!isNew">
+					<Alert
+						v-if="sectionError"
+						class="mb-3"
+						theme="red"
+						data-testid="section-error"
+						:title="sectionError"
+					/>
 					<Draggable
 						:list="quizDetails.doc.questions"
 						item-key="name"
@@ -178,6 +185,14 @@
 					>
 						<template #item="{ element, index }">
 							<div v-show="matchesSearch(element)">
+								<div
+									v-if="headings[index]"
+									data-testid="section-heading"
+									class="mb-2 mt-3 flex items-center gap-2 rounded-4 bg-surface-gray-2 px-3 py-1.5 text-sm-semibold text-ink-gray-8"
+								>
+									<span class="lucide-layers size-4 shrink-0 text-ink-gray-6" />
+									<span class="min-w-0 truncate">{{ headings[index] }}</span>
+								</div>
 								<QuestionCard
 									:row="element"
 									:index="index"
@@ -188,11 +203,13 @@
 									:meta="questionMeta[element.question] || null"
 									:readOnly="locked"
 									:allowedUiTypes="allowedUiTypesFor(typeRows, element.name)"
+									:sectionOptions="existingSections"
 									@edit="openCard(element)"
 									@done="closeCard(element.name)"
 									@dirty-change="setCardDirty(element, $event)"
 									@changed="applyQuestionChange(element, $event)"
-									@deleted="removeQuestion(element)"
+									@section-change="setSection(element, $event)"
+									@deleted="confirmRemoveQuestion(element)"
 									@duplicated="duplicateQuestion(element, $event)"
 								/>
 							</div>
@@ -268,6 +285,26 @@
 						variant="outline"
 						:required="true"
 					/>
+					<div class="space-y-1.5">
+						<FormControl
+							type="number"
+							min="0"
+							max="999.99"
+							step="0.01"
+							v-model="doc.practical_max_marks"
+							:label="__('Practical Max Marks')"
+							:description="__('0 means this test has no practical score')"
+							variant="outline"
+						/>
+						<p
+							v-if="practicalError"
+							role="alert"
+							data-testid="practical-error"
+							class="text-p-sm text-ink-red-4"
+						>
+							{{ practicalError }}
+						</p>
+					</div>
 					<FormControl
 						:model-value="questions.length"
 						:label="__('Total Questions')"
@@ -431,6 +468,15 @@ import { useDebounceFn } from '@vueuse/core'
 
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { sanitizeOnWrite } from '@/utils/sanitizeOnWrite'
+import {
+	MAX_GROUPS,
+	MAX_GROUP_LENGTH,
+	normalizeGroup,
+	sectionHeadings,
+	sectionNames,
+	validateSections,
+} from '@/utils/quizSections'
+import { isValidPracticalMaxMarks } from '@/utils/quizSettings'
 import { getLmsRoute } from '@/utils/basePath'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import { useCanWrite } from '@/composables/useCanWrite'
@@ -538,10 +584,39 @@ const questions = computed(() => {
 // An invented name is stripped, or _init_child updates a child row that does not exist.
 const savedQuestions = () =>
 	questions.value.map(({ name, ...rest }, position) => {
-		const row = { ...rest, idx: position + 1 }
+		const row = {
+			...rest,
+			idx: position + 1,
+			group: normalizeGroup(rest.group) || null,
+		}
 		if (name && !name.startsWith('new-')) row.name = name
 		return row
 	})
+
+// Section titles for the bands and the suggestions, read off the rows so a drag or an edit updates both.
+const headings = computed(() => sectionHeadings(questions.value))
+const existingSections = computed(() => sectionNames(questions.value))
+
+// The same rule the server enforces, so the author sees it before a save is refused.
+const sectionError = computed(() => {
+	const issue = validateSections(questions.value)[0]
+	if (!issue) return ''
+	if (issue.kind === 'split')
+		return __('Questions in section {0} must stay together').format(issue.group)
+	if (issue.kind === 'too_long')
+		return __('Section titles can have at most {0} characters').format(
+			MAX_GROUP_LENGTH
+		)
+	return __('A quiz can have at most {0} sections').format(MAX_GROUPS)
+})
+
+const practicalError = computed(() =>
+	isValidPracticalMaxMarks(doc.value?.practical_max_marks)
+		? ''
+		: __(
+				'Practical Max Marks must be between 0 and 999.99, with at most 2 decimals'
+			)
+)
 
 // setValue replaces doc wholesale and unmounts every open editor, so a save waits for them.
 const canSave = computed(
@@ -549,7 +624,9 @@ const canSave = computed(
 		!locked.value &&
 		quizDetails.value.isDirty &&
 		!draft.value &&
-		editingNames.size === 0
+		editingNames.size === 0 &&
+		!sectionError.value &&
+		!practicalError.value
 )
 
 // After a delete, doc is null while originalDoc is not, so isDirty alone would prompt.
@@ -741,17 +818,55 @@ const refreshQuestionMeta = () => {
 }
 
 // Edited in place and local until Save. A reload would drop rows the server has not seen.
-const localRow = ({ question, marks, type, multiple, question_detail }) => ({
+const localRow = ({
+	question,
+	marks,
+	type,
+	multiple,
+	question_detail,
+	group,
+}) => ({
 	name: newRowName(),
 	question,
 	marks: marks ?? 1,
 	type,
 	multiple,
 	question_detail,
+	group: group || null,
 })
 
+// Asked first because the row leaves the quiz at once and the only undo is leaving the page.
+const confirmRemoveQuestion = (row) => {
+	$dialog({
+		title: __('Delete this question?'),
+		message: __(
+			'The question is removed from this quiz. It stays in the question bank and in any other quiz that uses it.'
+		),
+		actions: [
+			{
+				label: __('Delete'),
+				theme: 'red',
+				variant: 'solid',
+				onClick({ close }) {
+					removeQuestion(row)
+					close()
+				},
+			},
+			{
+				label: __('Cancel'),
+				onClick({ close }) {
+					close()
+				},
+			},
+		],
+	})
+}
+
+// The row may have been swapped for a saved copy while the dialog was open, so fall back to its name.
 const removeQuestion = (row) => {
-	const position = questions.value.indexOf(row)
+	let position = questions.value.indexOf(row)
+	if (position === -1)
+		position = questions.value.findIndex((r) => r.name === row.name)
 	if (position === -1) return
 	quizDetails.value.doc.questions.splice(position, 1)
 	// Or the deleted row's name sits in the sets forever and locks reorder and Save.
@@ -763,8 +878,19 @@ const removeQuestion = (row) => {
 const duplicateQuestion = (row, payload) => {
 	const position = questions.value.indexOf(row)
 	if (position === -1) return
-	quizDetails.value.doc.questions.splice(position + 1, 0, localRow(payload))
+	// The copy stays in its source's section, or it would split the section it was made in.
+	quizDetails.value.doc.questions.splice(
+		position + 1,
+		0,
+		localRow({ ...payload, group: row.group })
+	)
 	refreshQuestionMeta()
+}
+
+// A cleared title is null, not an empty string, so a row with no section does not read as edited.
+const setSection = (row, value) => {
+	const group = normalizeGroup(value).slice(0, MAX_GROUP_LENGTH) || null
+	if ((row.group || null) !== group) row.group = group
 }
 
 // Written in place so the row reads true with no refetch. Undefined is skipped, never assigned.
@@ -993,6 +1119,11 @@ const submitQuiz = ({ notify = true } = {}) => {
 			...quizDetails.value.doc,
 			questions: savedQuestions(),
 			total_marks: calculateTotalMarks(),
+			// An emptied field is 0, the same as no practical score.
+			...(quizDetails.value.doc.practical_max_marks !== undefined && {
+				practical_max_marks:
+					Number(quizDetails.value.doc.practical_max_marks) || 0,
+			}),
 		},
 		{
 			onSuccess() {

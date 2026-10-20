@@ -1539,3 +1539,52 @@ def _evaluator_batches(user: str):
 			& (batch_course.parenttype == "LMS Batch")
 		)
 	)
+
+
+# --- Quiz practical score -----------------------------------------------------
+#
+# One row per (quiz, member), entered by staff. The member reads their own and can
+# never write it; staff reach it the way they reach the member's submissions.
+
+PRACTICAL_SCORE_DOCTYPE = "LMS Quiz Practical Score"
+PRACTICAL_SCORE_OWN_READ_PTYPES = ("read", "select", "print")
+
+
+def practical_score_query_conditions(user: str | None = None) -> str:
+	"""List rule: own rows, plus every row of a quiz the caller authors. Narrower than
+	:func:`practical_score_has_permission`, which also reaches course and batch staff;
+	those use the whitelisted endpoints in lms.lms.quiz_results."""
+	user = user or frappe.session.user
+	if _is_unrestricted(user):
+		return ""
+	score = frappe.qb.DocType(PRACTICAL_SCORE_DOCTYPE)
+	quiz = frappe.qb.DocType("LMS Quiz")
+	authored = frappe.qb.from_(quiz).select(quiz.name).where(_authored_condition("LMS Quiz", quiz, user))
+	condition = (score.member == LiteralValue(frappe.db.escape(user))) | score.quiz.isin(authored)
+	return _render(Bracket(condition))
+
+
+def practical_score_has_permission(doc, ptype: str | None = None, user: str | None = None) -> bool:
+	"""Stored and submitted (quiz, member) must both be reachable, so repointing a row
+	cannot borrow rights over one the caller does not reach."""
+	if doc is None:
+		return True
+	user = user or frappe.session.user
+	if user == "Administrator":
+		return True
+
+	pairs = {(doc.get("quiz"), doc.get("member"))}
+	if doc.get("name") and not doc.get("__islocal"):
+		stored = frappe.db.get_value(doc.doctype, doc.name, ["quiz", "member"], as_dict=True)
+		if stored:
+			pairs.add((stored.quiz, stored.member))
+
+	reading = ptype in (*PRACTICAL_SCORE_OWN_READ_PTYPES, None)
+	if reading and all(member == user for _quiz, member in pairs):
+		return True
+	# Whoever the row is about never writes it, whatever else they hold.
+	if any(member == user for _quiz, member in pairs):
+		return False
+	if _is_unrestricted(user):
+		return True
+	return all(can_review_submission("LMS Quiz", quiz, member, user=user) for quiz, member in pairs)

@@ -31,7 +31,18 @@
 				{{ currentType.label }}
 				<template #suffix><span class="lucide-lock size-4" /></template>
 			</Button>
-			<div v-if="marksCustom" ref="marksBoxRef" class="marks-input w-28">
+			<Badge
+				v-if="isFillBlank"
+				theme="gray"
+				variant="outline"
+				size="lg"
+				data-testid="fill-blank-marks"
+				:title="__('The total of the blank marks')"
+			>
+				<template #prefix><span class="lucide-gauge size-4" /></template>
+				{{ marksLabel(blankTotal) }}
+			</Badge>
+			<div v-else-if="marksCustom" ref="marksBoxRef" class="marks-input w-28">
 				<FormControl
 					type="number"
 					variant="outline"
@@ -96,6 +107,16 @@
 					:minHeight="fillsHeight ? '6rem' : '5rem'"
 				/>
 			</div>
+			<div
+				v-if="isFillBlank"
+				class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1"
+			>
+				<Button variant="outline" @mousedown.prevent @click="insertBlank">
+					<template #prefix><span class="lucide-plus size-4" /></template>
+					{{ __('Insert blank') }}
+				</Button>
+				<span class="text-p-sm text-ink-gray-6">{{ blankHint }}</span>
+			</div>
 		</div>
 		<QuestionAnswers
 			:key="answersKey"
@@ -109,15 +130,23 @@
 
 <script setup>
 import { Button, Badge, Dropdown, FormControl, FormLabel } from 'frappe-ui'
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import QuestionAnswers from './QuestionAnswers.vue'
 import {
 	hasContent,
+	isFillBlank as isFillBlankType,
 	QUESTION_TYPES,
 	uiTypeMeta,
 	marksLabel,
 } from '@/utils/quizQuestion'
+import {
+	blankToken,
+	extractBlankIds,
+	nextBlankId,
+	syncBlanks,
+	totalBlankMarks,
+} from '@/utils/fillBlank'
 
 const props = defineProps({
 	// Mutated in place: the owner holds the working copy and decides what to do with it.
@@ -164,6 +193,43 @@ const questionInvalid = computed(
 
 const markEditorTouched = () => {
 	editorTouched.value = true
+}
+
+// Fill in the Blanks. The blank rows follow the tokens in the body, whoever
+// changed it, and the question's marks are the sum of the rows' marks.
+const isFillBlank = computed(() => isFillBlankType(props.uiType))
+const blankTotal = computed(() => totalBlankMarks(props.question.blanks))
+const blankHint = computed(() =>
+	__('Each marker, such as {0}, becomes an answer box for the learner.').format(
+		blankToken(1)
+	)
+)
+
+watch(
+	[isFillBlank, () => props.question.question],
+	() => {
+		if (!isFillBlank.value) return
+		const rows = syncBlanks(
+			props.question.blanks,
+			extractBlankIds(props.question.question)
+		)
+		if (rows !== props.question.blanks) props.question.blanks = rows
+	},
+	{ immediate: true }
+)
+
+watch(
+	[isFillBlank, blankTotal],
+	() => {
+		if (isFillBlank.value && blankTotal.value > 0)
+			props.question.marks = blankTotal.value
+	},
+	{ immediate: true }
+)
+
+const insertBlank = () => {
+	const id = nextBlankId(extractBlankIds(props.question.question))
+	questionEditorRef.value?.insertText(blankToken(id))
 }
 
 // Type switch.

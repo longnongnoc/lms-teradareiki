@@ -13,6 +13,14 @@
 		empty-icon="lucide-file-check"
 		@load-more="submissions.next()"
 	>
+		<template #actions>
+			<HeaderButton
+				:route="{ name: 'QuizResults' }"
+				:label="__('Results')"
+				icon="lucide-clipboard-check"
+			/>
+		</template>
+
 		<template #filters>
 			<Link
 				doctype="LMS Quiz"
@@ -71,6 +79,7 @@ import { Button, createListResource, usePageMeta } from 'frappe-ui'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionStore } from '@/stores/session'
+import HeaderButton from '@/components/HeaderButton.vue'
 import Link from '@/components/Controls/Link.vue'
 import ListPage from '@/components/Layouts/pages/ListPage.vue'
 import { useBulkDeleteAction } from '@/utils/bulkDelete'

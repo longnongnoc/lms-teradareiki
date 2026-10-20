@@ -27,7 +27,18 @@
 			v-if="strippedQuestionDetail"
 			class="min-w-0 flex-1 truncate text-p-base-medium text-ink-gray-9"
 		>
-			{{ strippedQuestionDetail }}
+			<template v-if="isFillBlank">
+				<template v-for="(part, i) in detailParts" :key="i">
+					<span
+						v-if="part.type === 'blank'"
+						data-testid="blank-chip"
+						class="mx-0.5 rounded-4 bg-surface-blue-2 px-1 text-xs text-ink-blue-5"
+						>[{{ part.id }}]</span
+					>
+					<template v-else>{{ part.value }}</template>
+				</template>
+			</template>
+			<template v-else>{{ strippedQuestionDetail }}</template>
 		</div>
 		<div
 			v-else
@@ -43,6 +54,14 @@
 					><span :class="[currentType.icon, 'size-3']"
 				/></template>
 				{{ currentType.label }}
+			</Badge>
+		</span>
+		<span
+			v-if="isFillBlank"
+			class="min-w-0 overflow-hidden sm:shrink-0 sm:overflow-visible"
+		>
+			<Badge theme="gray" variant="subtle" data-testid="blank-count">
+				{{ blanksLabel(blankCount) }}
 			</Badge>
 		</span>
 		<span
@@ -87,6 +106,31 @@
 				/>
 			</template>
 		</QuestionEditor>
+
+		<div
+			v-if="!props.draft"
+			class="flex items-center gap-3 border-t px-4 py-3"
+			data-testid="section-field"
+		>
+			<label :for="sectionInputId" class="shrink-0 text-p-sm text-ink-gray-7">{{
+				__('Section')
+			}}</label>
+			<input
+				:id="sectionInputId"
+				v-model="sectionInput"
+				type="text"
+				:maxlength="MAX_GROUP_LENGTH"
+				:list="sectionListId"
+				:placeholder="__('No section')"
+				autocomplete="off"
+				class="h-7 min-w-0 flex-1 rounded border border-outline-gray-2 bg-surface-base px-2 text-base text-ink-gray-8 placeholder:text-ink-gray-4 focus:border-outline-gray-4 focus:outline-none focus:ring-2 focus:ring-outline-gray-3"
+				@change="commitSection"
+				@keydown.enter.prevent="commitSection"
+			/>
+			<datalist :id="sectionListId">
+				<option v-for="name in sectionOptions" :key="name" :value="name" />
+			</datalist>
+		</div>
 
 		<div class="flex items-center justify-between border-t px-4 py-3">
 			<div class="flex items-center gap-1">
@@ -143,7 +187,9 @@ import {
 	toUiType,
 	toBackendType,
 	marksLabel,
+	blanksLabel,
 } from '@/utils/quizQuestion'
+import { extractBlankIds, splitBlankTokens } from '@/utils/fillBlank'
 import {
 	useQuestionDoc,
 	getQuestion,
@@ -151,6 +197,7 @@ import {
 	createQuestion,
 } from '@/composables/useQuestionDoc'
 import { htmlToText } from '@/utils/inertHtml'
+import { MAX_GROUP_LENGTH, normalizeGroup } from '@/utils/quizSections'
 
 const props = defineProps({
 	row: { type: Object, required: true },
@@ -167,6 +214,8 @@ const props = defineProps({
 	allowedUiTypes: { type: Array, default: () => [] },
 	// True while the parent writes this draft to the bank. Only it knows when that ends.
 	persisting: { type: Boolean, default: false },
+	// Existing section titles in this quiz, offered as suggestions.
+	sectionOptions: { type: Array, default: () => [] },
 })
 const emit = defineEmits([
 	'edit',
@@ -178,6 +227,7 @@ const emit = defineEmits([
 	'draft-discarded',
 	'type-changed',
 	'dirty-change',
+	'section-change',
 ])
 
 // The parent holds a draft outside the questions array, so `editing` has no say over it.
@@ -198,7 +248,35 @@ watch(
 const strippedQuestionDetail = computed(() =>
 	htmlToText(props.row.question_detail).trim()
 )
+const isFillBlank = computed(() => uiType.value === 'fill_blank')
+// Tokens read as [1] chips in the collapsed row, instead of {{1}} in running text.
+const detailParts = computed(() =>
+	splitBlankTokens(strippedQuestionDetail.value)
+)
+// The loaded rows once the question is open, the tokens in the preview text before.
+const blankCount = computed(() =>
+	loaded.value
+		? working.blanks.length
+		: extractBlankIds(strippedQuestionDetail.value).length
+)
 const editorRef = ref(null)
+
+// The section lives on the quiz row, not the question, so it goes straight to the parent
+// instead of riding Save question. Committed on change, so a half-typed title never splits a section.
+const sectionInputId = computed(() => `section-input-${props.row.name}`)
+const sectionListId = computed(() => `section-options-${props.row.name}`)
+const sectionInput = ref(props.row.group || '')
+watch(
+	() => props.row.group,
+	(group) => {
+		sectionInput.value = group || ''
+	}
+)
+const commitSection = () => {
+	const value = normalizeGroup(sectionInput.value)
+	sectionInput.value = value
+	if (value !== normalizeGroup(props.row.group)) emit('section-change', value)
+}
 const saving = ref(false)
 const persistRequested = ref(false)
 const persistInFlight = computed(
@@ -247,13 +325,22 @@ const revertToStored = () => {
 // The parent cannot see `working`, so an open card's edits reach the leave guard through this.
 // Measured against the same snapshot revertToStored() uses, so the two cannot disagree.
 // Drafts are excluded, and the three guards below overlap but each states a different rule.
+// The blank rows are an array of objects, so reference equality would read every
+// edit-and-undo as a change.
+const differs = (current, saved) =>
+	Array.isArray(current) || Array.isArray(saved)
+		? JSON.stringify(current) !== JSON.stringify(saved)
+		: current !== saved
+
 const dirty = computed(() => {
 	if (props.draft || !loaded.value) return false
 	const snap = stored.value
 	if (!snap) return false
 	// An abandoned type switch is an unsaved edit even with the text untouched.
 	if (uiType.value !== snap.uiType) return true
-	return Object.keys(working).some((key) => working[key] !== snap.fields[key])
+	return Object.keys(working).some((key) =>
+		differs(working[key], snap.fields[key])
+	)
 })
 
 // Watching the computed, so a run of keystrokes inside one dirty state emits nothing.

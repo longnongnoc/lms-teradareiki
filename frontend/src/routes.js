@@ -233,6 +233,11 @@ export const routes = [
 		component: () => import('@/pages/QuizSubmissions.vue'),
 	},
 	{
+		path: '/quizzes/results',
+		name: 'QuizResults',
+		component: () => import('@/pages/QuizResults.vue'),
+	},
+	{
 		path: '/quizzes/questions',
 		name: 'Questions',
 		component: () => import('@/pages/Questions.vue'),

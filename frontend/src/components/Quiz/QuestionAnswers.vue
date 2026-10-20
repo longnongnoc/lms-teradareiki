@@ -29,16 +29,75 @@
 					/>
 				</div>
 				<div class="min-w-0 flex-1 space-y-1.5">
-					<FormControl
-						:class="[options.invalid(n) ? INVALID_INPUT_CLASS : null]"
-						variant="outline"
-						v-model="question[`option_${n}`]"
-						:required="options.isRequired(n)"
-						:aria-invalid="options.invalid(n) || undefined"
-						:aria-label="__('Option {0}').format(n)"
-						:placeholder="__('Option {0}').format(n)"
-						@blur="options.touch(n)"
-					/>
+					<div class="flex items-start gap-2">
+						<FormControl
+							class="min-w-0 flex-1"
+							:class="[options.invalid(n) ? INVALID_INPUT_CLASS : null]"
+							variant="outline"
+							v-model="question[`option_${n}`]"
+							:required="options.isRequired(n)"
+							:aria-invalid="
+								options.invalid(n) || reservedSlots.has(n) || undefined
+							"
+							:aria-label="__('Option {0}').format(n)"
+							:placeholder="__('Option {0}').format(n)"
+							@blur="options.touch(n)"
+						/>
+						<div
+							role="group"
+							class="flex shrink-0 items-center gap-1.5"
+							:aria-label="__('Option {0} image').format(n)"
+						>
+							<img
+								v-if="imageOf(n)"
+								:src="safeUrl(imageOf(n))"
+								:alt="__('Option {0} image').format(n)"
+								data-testid="option-image-preview"
+								class="size-8 rounded-4 border border-outline-gray-2 bg-surface-gray-1 object-contain"
+							/>
+							<FileUploader
+								:fileTypes="OPTION_IMAGE_TYPES"
+								:private="true"
+								:validateFile="validateImage"
+								@success="(file) => setImage(n, file.file_url)"
+								@failure="onImageFailure"
+							>
+								<template #default="{ openFileSelector, uploading }">
+									<Button
+										variant="outline"
+										icon="lucide-image-up"
+										data-testid="option-image-upload"
+										:loading="uploading"
+										:label="
+											imageOf(n)
+												? __('Replace image for option {0}').format(n)
+												: __('Upload image for option {0}').format(n)
+										"
+										@click="openFileSelector"
+									/>
+								</template>
+							</FileUploader>
+							<Button
+								v-if="imageOf(n)"
+								variant="ghost"
+								icon="lucide-trash-2"
+								data-testid="option-image-remove"
+								:label="__('Remove image from option {0}').format(n)"
+								@click="setImage(n, '')"
+							/>
+						</div>
+					</div>
+					<p
+						v-if="problemFor(n)"
+						data-testid="option-problem"
+						class="flex items-center gap-1.5 text-p-sm text-ink-red-5"
+					>
+						<span
+							class="lucide-circle-alert size-4 shrink-0"
+							aria-hidden="true"
+						/>
+						{{ problemFor(n) }}
+					</p>
 					<FormControl
 						variant="outline"
 						v-model="question[`explanation_${n}`]"
@@ -143,11 +202,18 @@
 			</Button>
 		</div>
 	</div>
+
+	<FillBlankAnswers
+		v-else-if="uiType === 'fill_blank'"
+		:question="question"
+		:revealErrors="revealErrors"
+	/>
 </template>
 
 <script setup>
-import { Button, Checkbox, FormControl } from 'frappe-ui'
+import { Button, Checkbox, FileUploader, FormControl, toast } from 'frappe-ui'
 import { computed, nextTick, reactive, ref, useId, watch } from 'vue'
+import FillBlankAnswers from './FillBlankAnswers.vue'
 import {
 	MAX_OPTIONS,
 	REQUIRED_OPTIONS,
@@ -157,7 +223,11 @@ import {
 	hasRequiredOptions,
 	hasRequiredPossibilities,
 	isChoice,
+	isOptionSlotPresent,
+	optionProblems,
 } from '@/utils/quizQuestion'
+import { OPTION_IMAGE_TYPES, optionImageError } from '@/utils/optionKey'
+import { safeUrl } from '@/utils/safeUrl'
 
 // Verbatim from frappe-ui Checkbox's inputClasses (md, enabled), minus its rounded-1.
 const RADIO_CLASSES =
@@ -200,11 +270,19 @@ const answerRows = ({
 	prefix,
 	minimum,
 	companions = [],
+	images = false,
+	populated = (n) => Boolean(props.question[`${prefix}_${n}`]),
+	present = (n) => !isBlank(props.question[`${prefix}_${n}`]),
 	missing,
 	rows,
 	section,
 }) => {
 	const fields = [prefix, ...companions]
+	// An option's image is `option_N_image`, so the number sits mid-name.
+	const names = (n) => [
+		...fields.map((field) => `${field}_${n}`),
+		...(images ? [`${prefix}_${n}_image`] : []),
+	]
 	const blanks = blankOptionFields()
 	const count = ref(minimum)
 	const isRequired = (n) => n <= minimum
@@ -216,16 +294,13 @@ const answerRows = ({
 		removable: computed(() => count.value > minimum),
 		touch: (n) => markTouched(`${prefix}_${n}`),
 		invalid: (n) =>
-			isRequired(n) &&
-			missing() &&
-			isBlank(props.question[`${prefix}_${n}`]) &&
-			revealed(`${prefix}_${n}`),
+			isRequired(n) && missing() && !present(n) && revealed(`${prefix}_${n}`),
 		// How many rows to show, derived from the populated fields on the working copy.
 		sync: () => {
 			count.value = Math.max(
 				minimum,
 				...Array.from({ length: MAX_OPTIONS }, (_, i) =>
-					props.question[`${prefix}_${i + 1}`] ? i + 1 : 0
+					populated(i + 1) ? i + 1 : 0
 				)
 			)
 		},
@@ -244,14 +319,13 @@ const answerRows = ({
 		remove: (pos) => {
 			if (count.value <= minimum) return
 			for (let n = pos; n < count.value; n++) {
-				for (const field of fields)
-					props.question[`${field}_${n}`] = props.question[`${field}_${n + 1}`]
+				const from = names(n + 1)
+				names(n).forEach((name, i) => {
+					props.question[name] = props.question[from[i]]
+				})
 				touched[`${prefix}_${n}`] = touched[`${prefix}_${n + 1}`]
 			}
-			for (const field of fields) {
-				const last = `${field}_${count.value}`
-				props.question[last] = blanks[last]
-			}
+			for (const last of names(count.value)) props.question[last] = blanks[last]
 			touched[`${prefix}_${count.value}`] = false
 			count.value--
 		},
@@ -262,6 +336,12 @@ const options = answerRows({
 	prefix: 'option',
 	minimum: REQUIRED_OPTIONS,
 	companions: ['is_correct', 'explanation'],
+	images: true,
+	populated: (n) =>
+		Boolean(
+			props.question[`option_${n}`] || props.question[`option_${n}_image`]
+		),
+	present: (n) => isOptionSlotPresent(props.question, n),
 	missing: () => !hasRequiredOptions(props.question),
 	rows: choiceRows,
 	section: choiceSection,
@@ -282,6 +362,42 @@ watch(
 	},
 	{ immediate: true }
 )
+
+const imageOf = (n) => props.question[`option_${n}_image`] || ''
+const setImage = (n, url) => {
+	props.question[`option_${n}_image`] = url
+}
+
+const imageErrors = {
+	get type() {
+		return __('Only JPG, PNG or WebP images are allowed.')
+	},
+	get size() {
+		return __('The image must be 5 MB or smaller.')
+	},
+}
+// FileUploader reports a returned string as the failure, and uploads nothing.
+const validateImage = (file) => optionImageError(file, imageErrors) || null
+const onImageFailure = (error) => {
+	toast.error(
+		typeof error === 'string'
+			? error
+			: error?.messages?.[0] || error?.message || __('Error uploading file')
+	)
+}
+
+// Definite mistakes, not missing fields, so they show at once rather than on blur.
+const problems = computed(() => optionProblems(props.question))
+const reservedSlots = computed(() => new Set(problems.value.reserved))
+const problemFor = (n) => {
+	if (reservedSlots.value.has(n))
+		return __('This text is reserved for image options. Use other text.')
+	if (problems.value.duplicates.includes(n))
+		return __('Option {0} is the same as an earlier option').format(n)
+	if (problems.value.emptyCorrect.includes(n))
+		return __('Add text or an image, or clear the correct mark')
+	return ''
+}
 
 // A radio nobody clicks is never blurred, so any blurred option arms the group.
 const anyRequiredOptionTouched = computed(() =>

@@ -14,7 +14,9 @@
   "show_submission_history",
   "column_break_gaac",
   "total_marks",
+  "total_questions",
   "passing_percentage",
+  "practical_max_marks",
   "duration",
   "enable_proctoring",
   "max_violations",
@@ -109,6 +111,14 @@
   },
   {
    "default": "0",
+   "description": "0 means the test has no practical score",
+   "fieldname": "practical_max_marks",
+   "fieldtype": "Float",
+   "label": "Practical Max Marks",
+   "non_negative": 1
+  },
+  {
+   "default": "0",
    "fieldname": "total_marks",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -116,6 +126,16 @@
    "non_negative": 1,
    "read_only": 1,
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "total_questions",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Total Questions",
+   "no_copy": 1,
+   "non_negative": 1,
+   "read_only": 1
   },
   {
    "default": "0",
@@ -204,7 +224,7 @@
    "link_fieldname": "quiz"
   }
  ],
- "modified": "2026-09-08 02:30:00.000000",
+ "modified": "2026-10-19 20:00:00.000000",
  "modified_by": "sayali@frappe.io",
  "module": "LMS",
  "name": "LMS Quiz",

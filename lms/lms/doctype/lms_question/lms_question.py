@@ -2,53 +2,155 @@
 # For license information, please see license.txt
 
 from typing import NamedTuple
-from urllib.parse import unquote
+from urllib.parse import unquote, urlparse
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.query_builder.functions import Locate
 from frappe.rate_limiter import rate_limit
+from frappe.utils import cint, escape_html, flt, get_url
 
 from lms.lms.doctype.lms_content_author.lms_content_author import AuthoredDocument
+from lms.lms.fill_blank import extract_blank_ids, parse_accepted_answers
 from lms.lms.permissions import can_access_quiz, is_content_author
+from lms.lms.question_media import (
+	MAX_IMAGE_BYTES,
+	MAX_IMAGES_PER_QUESTION,
+	correct_flags_without_option,
+	count_data_uri_images,
+	disallowed_extension_urls,
+	exceeds_image_limit,
+	extract_image_sources,
+	has_duplicate_options,
+	is_reserved_option_text,
+	local_file_urls,
+	option_present,
+	oversized_urls,
+)
 
 # Each LMS Question carries up to 10 option/correctness/explanation/possibility
 # columns. Keep these lists as the single source of truth so any future change
 # to cardinality touches one place.
 QUESTION_OPTION_FIELDS = [f"option_{i}" for i in range(1, 11)]
+QUESTION_OPTION_IMAGE_FIELDS = [f"option_{i}_image" for i in range(1, 11)]
 QUESTION_CORRECTNESS_FIELDS = [f"is_correct_{i}" for i in range(1, 11)]
 QUESTION_EXPLANATION_FIELDS = [f"explanation_{i}" for i in range(1, 11)]
 QUESTION_POSSIBILITY_FIELDS = [f"possibility_{i}" for i in range(1, 11)]
 
-# Prompt/options ship with the quiz attempt; explanations are answer-key material
-# and are gated harder (see can_view_quiz_answers).
-STUDENT_QUESTION_FIELDS = ("question", *QUESTION_OPTION_FIELDS)
+# Prompt/options (text and image) ship with the quiz attempt; explanations are
+# answer-key material and are gated harder (see can_view_quiz_answers).
+STUDENT_QUESTION_FIELDS = ("question", *QUESTION_OPTION_FIELDS, *QUESTION_OPTION_IMAGE_FIELDS)
 QUESTION_MEDIA_FIELDS = (*STUDENT_QUESTION_FIELDS, *QUESTION_EXPLANATION_FIELDS)
 
 
 class LMSQuestion(AuthoredDocument, Document):
 	def validate(self):
+		validate_question_images(self)
 		validate_correct_answers(self)
 		update_question_title(self)
 
 
+def validate_question_images(question):
+	"""Hold every question type to the same image rules: raster formats only, a size
+	cap per file, a count cap on the body, and uploads instead of embedded base64."""
+	body_sources = extract_image_sources(question.question)
+
+	if count_data_uri_images(body_sources):
+		frappe.throw(
+			_("Images embedded in the question text are not supported. Upload the image instead of pasting it.")
+		)
+
+	if exceeds_image_limit(body_sources):
+		frappe.throw(
+			_("A question can have at most {0} images, but this one has {1}.").format(
+				MAX_IMAGES_PER_QUESTION, len(body_sources)
+			)
+		)
+
+	hosts = {urlparse(get_url()).netloc}
+	request = getattr(frappe.local, "request", None)
+	if request:
+		hosts.add(request.host)
+
+	# An option image is a bare Attach Image url, not HTML, and holds exactly one image.
+	option_images = [question.get(f) for f in QUESTION_OPTION_IMAGE_FIELDS if question.get(f)]
+	if count_data_uri_images(option_images):
+		frappe.throw(_("Option images must be uploaded. Embedded image data is not supported."))
+
+	sources = list(body_sources) + option_images
+	for fieldname in QUESTION_MEDIA_FIELDS:
+		if fieldname != "question" and fieldname not in QUESTION_OPTION_IMAGE_FIELDS:
+			sources += extract_image_sources(question.get(fieldname))
+
+	urls = local_file_urls(sources, hosts)
+	if not urls:
+		return
+
+	bad_extensions = disallowed_extension_urls(urls)
+	if bad_extensions:
+		frappe.throw(
+			_("Image {0} is not allowed. Only JPG, PNG and WebP images can be used.").format(
+				frappe.bold(escape_html(bad_extensions[0]))
+			)
+		)
+
+	sizes = {}
+	for row in frappe.get_all("File", filters={"file_url": ["in", urls]}, fields=["file_url", "file_size"]):
+		sizes[row.file_url] = max(cint(row.file_size), sizes.get(row.file_url, 0))
+
+	for url, size in oversized_urls(urls, sizes):
+		frappe.throw(
+			_("Image {0} is {1} MB. Images can be at most {2} MB.").format(
+				frappe.bold(escape_html(url)),
+				round(size / (1024 * 1024), 1),
+				MAX_IMAGE_BYTES // (1024 * 1024),
+			)
+		)
+
+
 def validate_correct_answers(question):
 	if question.type == "Choices":
+		validate_reserved_option_text(question)
 		validate_duplicate_options(question)
 		validate_minimum_options(question)
 		validate_correct_options(question)
 	elif question.type == "User Input":
 		validate_possible_answer(question)
+	elif question.type == "Fill Blank":
+		validate_fill_blanks(question)
+
+
+def get_options(question):
+	"""(text, image) for each of the ten option slots, present or not."""
+	return [
+		(question.get(text_field), question.get(image_field))
+		for text_field, image_field in zip(QUESTION_OPTION_FIELDS, QUESTION_OPTION_IMAGE_FIELDS, strict=True)
+	]
+
+
+def validate_reserved_option_text(question):
+	# "[image:N]" is the answer key of an image-only option, so no text may use it.
+	for field in QUESTION_OPTION_FIELDS:
+		if is_reserved_option_text(question.get(field)):
+			frappe.throw(_("Option text cannot be written as [image:N]. Please change it."))
 
 
 def validate_duplicate_options(question):
-	options = [question.get(f) for f in QUESTION_OPTION_FIELDS if question.get(f)]
-	if len(set(options)) != len(options):
+	if has_duplicate_options(get_options(question)):
 		frappe.throw(_("Duplicate options found for this question."))
 
 
 def validate_correct_options(question):
+	flags = [question.get(f) == 1 for f in QUESTION_CORRECTNESS_FIELDS]
+	empty = correct_flags_without_option(get_options(question), flags)
+	if empty:
+		frappe.throw(
+			_("Option {0} is marked correct but has neither text nor an image.").format(
+				", ".join(str(position) for position in empty)
+			)
+		)
+
 	correct_options = get_correct_options(question)
 
 	if len(correct_options) > 1:
@@ -61,7 +163,8 @@ def validate_correct_options(question):
 
 
 def validate_minimum_options(question):
-	if question.type == "Choices" and (not question.option_1 or not question.option_2):
+	present = [option for option in get_options(question) if option_present(*option)]
+	if question.type == "Choices" and len(present) < 2:
 		frappe.throw(_("Minimum two options are required for multiple choice questions."))
 
 
@@ -72,6 +175,58 @@ def validate_possible_answer(question):
 				frappe.bold(question.question)
 			)
 		)
+
+
+def validate_fill_blanks(question):
+	blanks = question.get("blanks") or []
+	if not blanks:
+		frappe.throw(_("Add at least one blank for this question."))
+
+	blank_ids = []
+	total_marks = 0
+	for row in blanks:
+		blank_id = (row.blank_id or "").strip()
+		if not blank_id:
+			frappe.throw(_("Row {0}: Blank ID is required.").format(row.idx))
+		if blank_id in blank_ids:
+			frappe.throw(_("Row {0}: Blank ID {1} is duplicated.").format(row.idx, frappe.bold(blank_id)))
+		if not parse_accepted_answers(row.answers):
+			frappe.throw(
+				_("Row {0}: Add at least one accepted answer for blank {1}.").format(
+					row.idx, frappe.bold(blank_id)
+				)
+			)
+		marks = flt(row.marks)
+		if marks <= 0 or marks != int(marks):
+			frappe.throw(
+				_("Row {0}: Marks for blank {1} must be a whole number greater than zero.").format(
+					row.idx, frappe.bold(blank_id)
+				)
+			)
+		row.blank_id = blank_id
+		blank_ids.append(blank_id)
+		total_marks += int(marks)
+
+	token_ids = extract_blank_ids(question.question)
+	missing = [blank_id for blank_id in blank_ids if blank_id not in token_ids]
+	extra = [blank_id for blank_id in token_ids if blank_id not in blank_ids]
+	if missing or extra:
+		details = []
+		if missing:
+			details.append(
+				_("Blanks without a marker in the question: {0}").format(
+					", ".join(frappe.bold(blank_id) for blank_id in missing)
+				)
+			)
+		if extra:
+			details.append(
+				_("Markers in the question without a blank: {0}").format(
+					", ".join(frappe.bold(blank_id) for blank_id in extra)
+				)
+			)
+		frappe.throw("<br>".join(details), title=_("Blanks do not match the question"))
+
+	question.marks = total_marks
 
 
 def update_question_title(question):

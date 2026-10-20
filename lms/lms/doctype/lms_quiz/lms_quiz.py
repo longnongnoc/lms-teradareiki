@@ -35,10 +35,14 @@ from lms.lms.doctype.lms_content_author.lms_content_author import AuthoredDocume
 from lms.lms.doctype.lms_question.lms_question import (
 	QUESTION_CORRECTNESS_FIELDS,
 	QUESTION_OPTION_FIELDS,
+	QUESTION_OPTION_IMAGE_FIELDS,
 	QUESTION_POSSIBILITY_FIELDS,
 )
+from lms.lms.fill_blank import grade_fill_blank, parse_submitted_answer
+from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
+	PRIVILEGED_ROLES,
 	generate_slug,
 	has_course_instructor_role,
 	has_moderator_role,
@@ -50,7 +54,9 @@ from lms.lms.utils import (
 # enabling stored XSS on the LMS origin. SVG is excluded (script-bearing).
 ALLOWED_DATAURL_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp"}
 
-VIOLATION_EVENT_TYPES = {"tab_switch", "no_face", "multiple_faces", "focus_loss", "camera_disconnect"}
+MAX_QUESTION_GROUPS = 40
+
+VIOLATION_EVENT_TYPES ={"tab_switch", "no_face", "multiple_faces", "focus_loss", "camera_disconnect"}
 SUBMISSION_REASONS = {"manual", "timer_expired", "max_violations", "browser_closed", "left_page"}
 # One attempt cannot plausibly produce more proctoring events than this; the rest is a flood.
 MAX_VIOLATION_EVENTS = 500
@@ -67,6 +73,8 @@ MAX_VIOLATION_FRAMES = 40
 class LMSQuiz(AuthoredDocument, Document):
 	def validate(self):
 		self.validate_duplicate_questions()
+		self.validate_question_groups()
+		self.sync_fill_blank_marks()
 		self.validate_limit()
 		self.calculate_total_marks()
 		self.validate_open_ended_questions()
@@ -77,6 +85,46 @@ class LMSQuiz(AuthoredDocument, Document):
 		rows = [i + 1 for i, x in enumerate(questions) if questions.count(x) > 1]
 		if len(rows):
 			frappe.throw(_("Rows {0} have the duplicate questions.").format(frappe.bold(comma_and(rows))))
+
+	def validate_question_groups(self):
+		"""A section is a run of adjacent rows sharing one `group` title. Rows with no
+		title are ungrouped and never form a section."""
+		rows_by_group = {}
+		for index, row in enumerate(self.questions, start=1):
+			group = (row.group or "").strip()
+			row.group = group or None
+			if group:
+				rows_by_group.setdefault(group, []).append(index)
+
+		for group, rows in rows_by_group.items():
+			if rows[-1] - rows[0] + 1 != len(rows):
+				frappe.throw(
+					_("Section {0} is split: its rows {1} are separated by rows of another section.").format(
+						frappe.bold(group), frappe.bold(comma_and(rows))
+					)
+				)
+
+		if len(rows_by_group) > MAX_QUESTION_GROUPS:
+			frappe.throw(_("A quiz can have at most {0} sections.").format(MAX_QUESTION_GROUPS))
+
+	def sync_fill_blank_marks(self):
+		"""A Fill Blank question is worth the sum of its blanks, so its row cannot be
+		priced separately: a graded row would otherwise exceed the quiz total."""
+		names = [row.question for row in self.questions if row.question]
+		if not names:
+			return
+
+		marks = {
+			row.name: cint(row.marks)
+			for row in frappe.get_all(
+				"LMS Question",
+				filters={"name": ["in", names], "type": "Fill Blank"},
+				fields=["name", "marks"],
+			)
+		}
+		for row in self.questions:
+			if row.question in marks:
+				row.marks = marks[row.question]
 
 	def validate_limit(self):
 		if not self.shuffle_questions and self.limit_questions_to:
@@ -91,6 +139,9 @@ class LMSQuiz(AuthoredDocument, Document):
 				frappe.throw(_("All questions should have the same marks if the limit is set."))
 
 	def calculate_total_marks(self):
+		# A count of rows, not of what one attempt shows: limit_questions_to is not applied.
+		self.total_questions = len(self.questions)
+
 		if len(self.questions) == 0:
 			self.total_marks = 0
 			self.passing_percentage = 100
@@ -265,13 +316,19 @@ def _answer_counts(results: list, total_questions: int) -> dict:
 	"""Correct, wrong and not answered, for the result screen. A blank answer counts
 	as not answered, and so does a question the attempt never reached, which has no
 	result row at all."""
-	answered = [row for row in results if cstr(row.get("answer")).strip()]
+	answered = [row for row in results if _is_answered(row)]
 	correct = sum(1 for row in answered if row.get("is_correct"))
 	return {
 		"correct": correct,
 		"wrong": len(answered) - correct,
 		"unanswered": max(total_questions - len(answered), 0),
 	}
+
+
+def _is_answered(row: dict) -> bool:
+	if row.get("question_type") == "Fill Blank":
+		return any(value.strip() for value in parse_submitted_answer(row.get("answer")).values())
+	return bool(cstr(row.get("answer")).strip())
 
 
 def _attach_answer_files(file_names: list[str], submission: str) -> None:
@@ -582,6 +639,8 @@ def process_results(results: list, quiz_details: dict):
 		if not question_details:
 			frappe.throw(_("Invalid quiz results submitted."), frappe.ValidationError)
 
+		raw_answer = (result.get("answer") or [None])[0]
+
 		# Normalise the answer to a non-empty list of strings so re.sub/join/[0] below can't
 		# choke on a null/empty element (the UI sends [null] for a skipped open-ended answer).
 		result["answer"] = [a if isinstance(a, str) else "" for a in (result.get("answer") or [])] or [""]
@@ -591,7 +650,19 @@ def process_results(results: list, quiz_details: dict):
 		result["marks_out_of"] = question_details.marks
 		result["question_type"] = question_details.type
 
-		if question_details.type != "Open Ended":
+		if question_details.type == "Fill Blank":
+			graded = grade_fill_blank(
+				get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)
+			)
+			# One entry per real blank: stray keys from a forged payload are not stored.
+			result["answer"] = json.dumps(
+				{item["blank_id"]: item["answer"] for item in graded["results"]}, ensure_ascii=False
+			)
+			result["marks"] = cint(graded["marks"])
+			result["marks_out_of"] = cint(graded["marks_out_of"])
+			result["is_correct"] = 1 if graded["is_correct"] else 0
+
+		elif question_details.type != "Open Ended":
 			if question_details.type == "User Input":
 				correct = bool(check_input_answers(question_details.question, result["answer"][0]))
 			else:
@@ -626,26 +697,8 @@ def process_results(results: list, quiz_details: dict):
 
 def verify_answer(question: str, answer: list):
 	question_details = get_question_details(question)
-
-	if question_details.multiple:
-		for option_field, correctness_field in zip(
-			QUESTION_OPTION_FIELDS, QUESTION_CORRECTNESS_FIELDS, strict=True
-		):
-			option = question_details[option_field]
-			is_correct = question_details[correctness_field]
-			if option in answer and not is_correct:
-				return False
-			if is_correct and option not in answer:
-				return False
-		return True
-
-	correct = False
-	for option_field, correctness_field in zip(
-		QUESTION_OPTION_FIELDS, QUESTION_CORRECTNESS_FIELDS, strict=True
-	):
-		if question_details[option_field] in answer:
-			correct = question_details[correctness_field]
-	return correct
+	keys, flags = get_option_keys_and_flags(question_details)
+	return bool(is_choice_answer_correct(keys, flags, question_details.multiple, answer))
 
 
 def _save_file(created: list[str], match: re.Match) -> str:
@@ -780,6 +833,12 @@ def check_answer(quiz: str, question: str, question_type: str, answers: str):
 	if question_type == "Choices":
 		return check_choice_answers(question, answers)
 
+	if question_type == "Fill Blank":
+		if frappe.db.get_value("LMS Question", question, "type") != "Fill Blank":
+			frappe.throw(_("Invalid question type."), frappe.ValidationError)
+		submitted = parse_submitted_answer(answers[0] if answers else None)
+		return grade_fill_blank(get_fill_blanks(question), submitted)
+
 	# A blank input answer (empty list, or the [null] the UI emits for an untouched field)
 	# scores as incorrect; coerce to "" so answers[0] can't IndexError / feed None onward.
 	answer = answers[0] if answers else ""
@@ -787,25 +846,84 @@ def check_answer(quiz: str, question: str, question_type: str, answers: str):
 
 
 def get_question_details(question: str):
-	fields = ["multiple"] + QUESTION_OPTION_FIELDS + QUESTION_CORRECTNESS_FIELDS
+	fields = (
+		["multiple"] + QUESTION_OPTION_FIELDS + QUESTION_OPTION_IMAGE_FIELDS + QUESTION_CORRECTNESS_FIELDS
+	)
 	return frappe.db.get_value("LMS Question", question, fields, as_dict=1)
 
 
-def check_choice_answers(question: str, answers: list):
-	question_details = get_question_details(question)
-	is_correct = []
+def get_option_keys_and_flags(question_details):
+	"""Answer key and correct flag per option slot. An option's key is its text, or
+	"[image:N]" for an image-only option in slot N; an absent option has key None."""
+	keys = option_keys(
+		[
+			(question_details[text_field], question_details[image_field])
+			for text_field, image_field in zip(QUESTION_OPTION_FIELDS, QUESTION_OPTION_IMAGE_FIELDS, strict=True)
+		]
+	)
+	return keys, [question_details[field] for field in QUESTION_CORRECTNESS_FIELDS]
 
-	for option_field, correctness_field in zip(
-		QUESTION_OPTION_FIELDS, QUESTION_CORRECTNESS_FIELDS, strict=True
+
+def get_fill_blanks(question: str) -> list[dict]:
+	"""Blanks with their accepted answers. Answer-key material: never ship to a learner."""
+	return frappe.get_all(
+		"LMS Question Blank",
+		filters={"parent": question, "parenttype": "LMS Question", "parentfield": "blanks"},
+		fields=["blank_id", "answers", "marks"],
+		order_by="idx asc",
+	)
+
+
+@frappe.whitelist()
+def get_fill_blank_review(submission: str):
+	"""Per-blank results of every Fill Blank answer in a submission, keyed by question name.
+
+	The accepted answers are only included for a viewer who may see the answer key: a
+	privileged role, or a quiz that reveals answers (show_answers). Anyone else gets each
+	blank's own answer, is_correct and marks.
+	"""
+	if not isinstance(submission, str):
+		frappe.throw(_("Invalid submission."), frappe.ValidationError)
+
+	row = frappe.db.get_value("LMS Quiz Submission", submission, ["quiz", "member"], as_dict=True)
+	if not row:
+		frappe.throw(_("Invalid submission."), frappe.ValidationError)
+	if not (
+		row.member == frappe.session.user or frappe.has_permission("LMS Quiz Submission", "read", submission)
 	):
-		if question_details[option_field] in answers:
-			is_correct.append(question_details[correctness_field])
-		elif question_details[correctness_field]:
-			is_correct.append(2)
-		else:
-			is_correct.append(0)
+		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
 
-	return is_correct
+	show_answers = frappe.db.get_value("LMS Quiz", row.quiz, "show_answers")
+	reveal = bool(PRIVILEGED_ROLES & set(frappe.get_roles())) or bool(show_answers)
+
+	result_rows = frappe.get_all(
+		"LMS Quiz Result",
+		filters={
+			"parent": submission,
+			"parenttype": "LMS Quiz Submission",
+			"question_type": "Fill Blank",
+		},
+		fields=["question_name", "answer"],
+		order_by="idx asc",
+	)
+
+	review = {}
+	for result_row in result_rows:
+		graded = grade_fill_blank(
+			get_fill_blanks(result_row.question_name), parse_submitted_answer(result_row.answer)
+		)
+		if not reveal:
+			for item in graded["results"]:
+				item.pop("accepted", None)
+		review[result_row.question_name] = graded
+	return review
+
+
+def check_choice_answers(question: str, answers: list):
+	"""One entry per option slot, in slot order (index 0 is option_1): 1 chosen and
+	correct, 2 correct but not chosen, 0 otherwise."""
+	keys, flags = get_option_keys_and_flags(get_question_details(question))
+	return choice_answer_flags(keys, flags, answers)
 
 
 def check_input_answers(question: str, answer: str):
@@ -863,7 +981,7 @@ def get_question_meta(questions: str | list):
 	return meta
 
 
-QUESTION_BANK_TYPES = ("Choices", "User Input", "Open Ended")
+QUESTION_BANK_TYPES = ("Choices", "User Input", "Open Ended", "Fill Blank")
 
 
 def _name_list(value):
@@ -938,9 +1056,28 @@ def get_question_bank(
 			)
 		)
 
+	fill_blank_names = [q["name"] for q in questions if q["type"] == "Fill Blank"]
+	blanks_by_question = {name: [] for name in fill_blank_names}
+	if fill_blank_names:
+		for blank in frappe.get_all(
+			"LMS Question Blank",
+			filters={
+				"parent": ["in", fill_blank_names],
+				"parenttype": "LMS Question",
+				"parentfield": "blanks",
+			},
+			fields=["parent", "blank_id", "answers", "marks"],
+			order_by="idx asc",
+		):
+			blanks_by_question[blank.parent].append(
+				{"blank_id": blank.blank_id, "answers": blank.answers, "marks": blank.marks}
+			)
+
 	# Marks belong to the question now. A quiz's own row can still carry a different
 	# number, but the bank offers the question's, which is what a new row starts on.
 	for q in questions:
+		if q["name"] in blanks_by_question:
+			q["blanks"] = blanks_by_question[q["name"]]
 		q["already_in_quiz"] = q["name"] in in_quiz
 		# cint, not `or 1`: a question deliberately worth 0 marks (the field is
 		# non_negative, not > 0) would otherwise be offered to the quiz as worth 1.

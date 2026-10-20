@@ -863,6 +863,35 @@
 			"export"
 		]
 	},
+	"LMS Quiz Practical Score": {
+		"Batch Evaluator#0": [
+			"read",
+			"write",
+			"create",
+			"delete",
+			"report",
+			"export"
+		],
+		"Course Creator#0": [
+			"read",
+			"write",
+			"create",
+			"delete",
+			"report",
+			"export"
+		],
+		"LMS Student#0": [
+			"read"
+		],
+		"Moderator#0": [
+			"read",
+			"write",
+			"create",
+			"delete",
+			"report",
+			"export"
+		]
+	},
 	"LMS Quiz Submission": {
 		"Batch Evaluator#0": [
 			"read",

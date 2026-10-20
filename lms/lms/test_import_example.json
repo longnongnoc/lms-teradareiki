@@ -1,0 +1,69 @@
+{
+	"tests": [
+		{
+			"title": "冷凍サイクル基礎テスト",
+			"description": "冷凍サイクルの基本を確認する例題です。",
+			"passing_percentage": 70,
+			"duration_minutes": 30,
+			"max_attempts": 3,
+			"shuffle_questions": false,
+			"show_answers": true,
+			"practical_max_marks": 20,
+			"sections": [
+				{
+					"title": "第1章 冷凍サイクルの構成",
+					"questions": [
+						{
+							"type": "fill_blank",
+							"body": "<p>次の表の空欄に当てはまる機器名を答えてください。</p><table><thead><tr><th>機器</th><th>役割</th></tr></thead><tbody><tr><td>{{1}}</td><td>冷媒ガスを圧縮して高温高圧にする</td></tr><tr><td>{{2}}</td><td>冷媒ガスを冷却して液化する</td></tr><tr><td>{{3}}</td><td>冷媒液を蒸発させて熱を奪う</td></tr></tbody></table>",
+							"blanks": [
+								{"id": "1", "answers": ["圧縮機", "コンプレッサー"], "marks": 1},
+								{"id": "2", "answers": ["凝縮器", "コンデンサー"], "marks": 1},
+								{"id": "3", "answers": ["蒸発器", "エバポレーター"], "marks": 1}
+							]
+						},
+						{
+							"type": "fill_blank",
+							"body": "<p>冷媒の圧力を下げて温度を下げる装置を{{1}}と呼び、キャピラリーチューブもその一種です。</p>",
+							"blanks": [
+								{"id": "1", "answers": ["膨張弁", "ぼうちょうべん"], "marks": 2}
+							]
+						}
+					]
+				},
+				{
+					"title": "第2章 安全と点検",
+					"questions": [
+						{
+							"type": "single_choice",
+							"text": "<p>冷媒ガスの漏えい点検で最も一般的な方法はどれですか。</p>",
+							"options": [
+								{"text": "目視のみで確認する", "correct": false},
+								{"text": "リークディテクターで検査する", "correct": true, "explanation": "専用の検知器で微量の漏えいを確認します。"},
+								{"text": "圧力計の針を見ない", "correct": false}
+							],
+							"marks": 2
+						},
+						{
+							"type": "multiple_choice",
+							"text": "<p>運転前の点検項目として正しいものをすべて選んでください。</p>",
+							"options": [
+								{"text": "電源電圧の確認", "correct": true},
+								{"text": "ドレン排水の確認", "correct": true},
+								{"text": "保護具を外して作業する", "correct": false},
+								{"text": "配管の保温材の状態確認", "correct": true}
+							],
+							"marks": 3
+						},
+						{
+							"type": "user_input",
+							"text": "<p>冷媒R410Aの主な特徴を一言で答えてください(オゾン層への影響)。</p>",
+							"answers": ["オゾン破壊係数がゼロ", "オゾン層を破壊しない"],
+							"marks": 2
+						}
+					]
+				}
+			]
+		}
+	]
+}

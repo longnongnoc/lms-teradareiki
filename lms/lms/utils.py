@@ -2299,6 +2299,7 @@ def get_quiz_with_questions(quiz: str) -> dict:
 	from lms.lms.doctype.lms_question.lms_question import (
 		QUESTION_EXPLANATION_FIELDS,
 		QUESTION_OPTION_FIELDS,
+		QUESTION_OPTION_IMAGE_FIELDS,
 	)
 	from lms.lms.permissions import can_access_quiz
 	from lms.lms.schedule_utils import enrich_schedule_payload
@@ -2334,6 +2335,7 @@ def get_quiz_with_questions(quiz: str) -> dict:
 				"type",
 				"multiple",
 				*QUESTION_OPTION_FIELDS,
+				*QUESTION_OPTION_IMAGE_FIELDS,
 			]
 			if can_view_quiz_answers(quiz, quiz_doc.get("show_answers")):
 				fields += QUESTION_EXPLANATION_FIELDS
@@ -2345,6 +2347,7 @@ def get_quiz_with_questions(quiz: str) -> dict:
 				ignore_permissions=True,
 			)
 			questions_by_name = {row["name"]: _rewrite_question_private_media(row) for row in rows}
+			_attach_fill_blank_slots(questions_by_name)
 			for child in quiz_doc.get("questions") or []:
 				if child.get("question_detail"):
 					child["question_detail"] = rewrite_private_media(
@@ -2352,6 +2355,31 @@ def get_quiz_with_questions(quiz: str) -> dict:
 					)
 
 	return {"quiz": quiz_doc, "questions_by_name": questions_by_name}
+
+
+def _attach_fill_blank_slots(questions_by_name: dict) -> None:
+	"""Give each Fill Blank question its blank ids and marks, and nothing else.
+
+	The accepted answers live in the same child rows, so the fields are named
+	explicitly: a learner receives the shape of the question, never the answer key.
+	"""
+	names = [name for name, row in questions_by_name.items() if row.get("type") == "Fill Blank"]
+	if not names:
+		return
+
+	for name in names:
+		questions_by_name[name]["blanks"] = []
+
+	# nosemgrep: lms-unjustified-ignore-permissions - access gated by can_access_quiz in the caller
+	blanks = frappe.get_all(
+		"LMS Question Blank",
+		filters={"parent": ["in", names], "parenttype": "LMS Question", "parentfield": "blanks"},
+		fields=["parent", "blank_id", "marks"],
+		order_by="idx asc",
+		ignore_permissions=True,
+	)
+	for blank in blanks:
+		questions_by_name[blank.parent]["blanks"].append({"blank_id": blank.blank_id, "marks": blank.marks})
 
 
 def _rewrite_question_private_media(row: dict) -> dict:
@@ -2363,9 +2391,15 @@ def _rewrite_question_private_media(row: dict) -> dict:
 	from lms.lms.doctype.lms_question.lms_question import (
 		QUESTION_EXPLANATION_FIELDS,
 		QUESTION_OPTION_FIELDS,
+		QUESTION_OPTION_IMAGE_FIELDS,
 	)
 
-	for field in ("question", *QUESTION_OPTION_FIELDS, *QUESTION_EXPLANATION_FIELDS):
+	for field in (
+		"question",
+		*QUESTION_OPTION_FIELDS,
+		*QUESTION_OPTION_IMAGE_FIELDS,
+		*QUESTION_EXPLANATION_FIELDS,
+	):
 		if row.get(field):
 			row[field] = rewrite_private_media(row[field], QUESTION_PRIVATE_MEDIA_ENDPOINT)
 	return row

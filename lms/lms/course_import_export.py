@@ -55,8 +55,8 @@ def export_course_zip(course_name):
 	lessons = get_lessons_for_export(course_name)
 	instructors = get_course_instructors(course)
 	evaluator = get_course_evaluator(course)
-	assets = get_course_assets(course, lessons, instructors, evaluator)
 	assessments, questions, test_cases = get_course_assessments(lessons)
+	assets = get_course_assets(course, lessons, instructors, evaluator, questions)
 	safe_time = frappe.utils.now_datetime().strftime("%Y%m%d_%H%M%S")
 	zip_filename = f"{course.name}_{safe_time}_{secrets.token_hex(4)}.zip"
 	create_course_zip(
@@ -164,7 +164,13 @@ def get_course_evaluator(course):
 	return evaluators
 
 
-def get_course_assets(course, lessons, instructors, evaluator):
+def get_question_option_image_urls(question):
+	from lms.lms.doctype.lms_question.lms_question import QUESTION_OPTION_IMAGE_FIELDS
+
+	return [question.get(field) for field in QUESTION_OPTION_IMAGE_FIELDS if question.get(field)]
+
+
+def get_course_assets(course, lessons, instructors, evaluator, questions=()):
 	assets = []
 	if course.image:
 		assets.append(course.image)
@@ -178,6 +184,8 @@ def get_course_assets(course, lessons, instructors, evaluator):
 			assets.append(instructor["user_image"])
 	if len(evaluator):
 		assets.append(evaluator[0].user_image)
+	for question in questions:
+		assets.extend(get_question_option_image_urls(question))
 
 	course_documents = get_course_documents(course, lessons)
 	files = (
@@ -797,6 +805,11 @@ def create_question_doc(zip_file, file):
 	question_data = read_json_from_zip(zip_file, file)
 	if question_data:
 		drop_source_site_authors(question_data)
+		if question_data.get("blanks"):
+			question_data["blanks"] = [
+				{"blank_id": row.get("blank_id"), "answers": row.get("answers"), "marks": row.get("marks")}
+				for row in question_data["blanks"]
+			]
 		doc = frappe.new_doc("LMS Question")
 		doc.update(question_data)
 		doc.insert(ignore_permissions=True)
@@ -807,7 +820,7 @@ def add_questions_to_quiz(quiz_doc, questions):
 		question_detail = question["question_detail"]
 		question_name = frappe.db.get_value("LMS Question", {"question": question_detail}, "name")
 		if question_name:
-			quiz_doc.append("questions", {"question": question_name})
+			quiz_doc.append("questions", {"question": question_name, "group": question.get("group")})
 
 
 def create_supporting_docs(zip_file):
@@ -943,6 +956,9 @@ def get_referenced_asset_urls(zip_file):
 		for block in get_editorjs_blocks(lesson.get("content")):
 			if block.get("type") == "upload":
 				yield block.get("data", {}).get("file_url")
+	for member in zip_file.namelist():
+		if member.startswith("assessments/questions/") and member.endswith(".json"):
+			yield from get_question_option_image_urls(read_json_from_zip(zip_file, member) or {})
 
 
 def get_asset_citations(zip_file):

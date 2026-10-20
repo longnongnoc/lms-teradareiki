@@ -289,6 +289,7 @@ vi.mock('@/components/Quiz/QuestionCard.vue', () => {
 				'usageCount',
 				'allowedUiTypes',
 				'persisting',
+				'sectionOptions',
 			],
 			emits: [
 				'edit',
@@ -300,6 +301,7 @@ vi.mock('@/components/Quiz/QuestionCard.vue', () => {
 				'draft-discarded',
 				'type-changed',
 				'dirty-change',
+				'section-change',
 			],
 			setup: () => ({ mountId: ++mounts }),
 			template: `<div
@@ -766,5 +768,255 @@ describe('legacy quiz URLs', () => {
 		const router = await realRouter()
 		await router.push(path)
 		expect(router.currentRoute.value.name).toBe(name)
+	})
+})
+
+describe('QuizForm: sections', () => {
+	const sectioned = (
+		name: string,
+		question: string,
+		group: string | null,
+		marks = 1
+	) => ({
+		idx: 0,
+		name,
+		question,
+		type: 'Choices',
+		marks,
+		question_detail: `<p>${question}</p>`,
+		group,
+	})
+	const rows = () => [
+		sectioned('a1', 'Q1', 'Theory'),
+		sectioned('a2', 'Q2', 'Theory'),
+		sectioned('a3', 'Q3', null),
+		sectioned('a4', 'Q4', 'Practice'),
+	]
+	const bands = (wrapper: any) =>
+		wrapper
+			.findAll('[data-testid="section-heading"]')
+			.map((band: any) => band.text())
+	const sectionError = (wrapper: any) =>
+		wrapper.find('[data-testid="section-error"]')
+	// What a drag does to the list: the same array, spliced in place.
+	const move = async (wrapper: any, from: number, to: number) => {
+		const list = doc(wrapper).questions
+		list.splice(to, 0, ...list.splice(from, 1))
+		await flushPromises()
+	}
+	const savedRows = () =>
+		(setValueSubmit.mock.calls.at(-1)![0] as Doc).questions as Doc[]
+
+	it('prints one band above the first question of each contiguous section', async () => {
+		const { wrapper } = await mountForm(rows())
+		expect(bands(wrapper)).toEqual(['Theory', 'Practice'])
+		expect(sectionError(wrapper).exists()).toBe(false)
+	})
+
+	it('shows no band for a quiz without sections', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		expect(bands(wrapper)).toEqual([])
+	})
+
+	it('blocks the save with an inline error once a drop splits a section', async () => {
+		const { wrapper } = await mountForm(rows())
+		await move(wrapper, 2, 1)
+
+		expect(sectionError(wrapper).text()).toContain(
+			'Questions in section Theory must stay together'
+		)
+		await makeDirty(wrapper)
+		await pressSave()
+		expect(setValueSubmit).not.toHaveBeenCalled()
+
+		await move(wrapper, 1, 2)
+		expect(sectionError(wrapper).exists()).toBe(false)
+		await pressSave()
+		expect(setValueSubmit).toHaveBeenCalledTimes(1)
+	})
+
+	it('keeps a moved question in its own section', async () => {
+		const { wrapper } = await mountForm(rows())
+		await move(wrapper, 3, 2)
+		expect(doc(wrapper).questions.map((r: Doc) => r.group)).toEqual([
+			'Theory',
+			'Theory',
+			'Practice',
+			null,
+		])
+		expect(bands(wrapper)).toEqual(['Theory', 'Practice'])
+	})
+
+	it('sends every row with its group, and null for none', async () => {
+		const { wrapper } = await mountForm(rows())
+		await rowComponent(wrapper, 'a3')!.vm.$emit('section-change', '  Practice ')
+		await flushPromises()
+		expect(bands(wrapper)).toEqual(['Theory', 'Practice'])
+		await rowComponent(wrapper, 'a1')!.vm.$emit('section-change', '')
+		await rowComponent(wrapper, 'a2')!.vm.$emit('section-change', '')
+		await flushPromises()
+		await pressSave()
+
+		expect(savedRows().map((r) => r.group)).toEqual([
+			null,
+			null,
+			'Practice',
+			'Practice',
+		])
+	})
+
+	it('sends null for a row that never had a group', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await makeDirty(wrapper)
+		await pressSave()
+		expect(savedRows()[0].group).toBeNull()
+	})
+
+	it('blocks a title longer than 140 characters', async () => {
+		const { wrapper } = await mountForm(rows())
+		const long = 'x'.repeat(141)
+		doc(wrapper).questions[0].group = long
+		doc(wrapper).questions[1].group = long
+		await flushPromises()
+
+		expect(sectionError(wrapper).text()).toContain('at most 140 characters')
+		await pressSave()
+		expect(setValueSubmit).not.toHaveBeenCalled()
+	})
+
+	it('keeps a duplicate inside the section of its source', async () => {
+		const { wrapper } = await mountForm(rows())
+		await rowComponent(wrapper, 'a1')!.vm.$emit('duplicated', {
+			question: 'Q9',
+			marks: 1,
+			type: 'Choices',
+			multiple: 0,
+			question_detail: '<p>copy</p>',
+		})
+		await flushPromises()
+
+		expect(doc(wrapper).questions[1].question).toBe('Q9')
+		expect(doc(wrapper).questions[1].group).toBe('Theory')
+		expect(sectionError(wrapper).exists()).toBe(false)
+	})
+})
+
+describe('QuizForm: deleting a question', () => {
+	const twoRows = () => [
+		{ ...CHOICE_ROW, name: 'a1', question: 'Q1', marks: 2 },
+		{ ...CHOICE_ROW, name: 'a2', question: 'Q2', marks: 5 },
+	]
+	const totalQuestions = (wrapper: any) =>
+		(
+			wrapper
+				.findAll('label')
+				.find((l: any) => l.text().startsWith('Total Questions'))!
+				.find('input').element as HTMLInputElement
+		).value
+	const choose = (index: number) => {
+		const { actions } = $dialog.mock.calls.at(-1)![0]
+		const close = vi.fn()
+		actions[index].onClick({ close })
+		return close
+	}
+
+	it('asks before removing and leaves the row alone until confirmed', async () => {
+		const { wrapper } = await mountForm(twoRows())
+		await rowComponent(wrapper, 'a1')!.vm.$emit('deleted')
+
+		expect($dialog).toHaveBeenCalledTimes(1)
+		expect(cardComponents(wrapper)).toHaveLength(2)
+		expect(totalQuestions(wrapper)).toBe('2')
+	})
+
+	it('keeps the question on Cancel', async () => {
+		const { wrapper } = await mountForm(twoRows())
+		await rowComponent(wrapper, 'a1')!.vm.$emit('deleted')
+		const close = choose(1)
+		await flushPromises()
+
+		expect(close).toHaveBeenCalled()
+		expect(cardComponents(wrapper)).toHaveLength(2)
+	})
+
+	it('removes the question on confirm and updates the count and total marks at once', async () => {
+		const { wrapper } = await mountForm(twoRows())
+		expect(doc(wrapper).total_marks).toBe(7)
+		await rowComponent(wrapper, 'a1')!.vm.$emit('deleted')
+		const close = choose(0)
+		await flushPromises()
+
+		expect(close).toHaveBeenCalled()
+		expect(cardComponents(wrapper)).toHaveLength(1)
+		expect(totalQuestions(wrapper)).toBe('1')
+		expect(doc(wrapper).total_marks).toBe(5)
+	})
+
+	it('recomputes the total after a reorder that changes which rows the limit keeps', async () => {
+		const { wrapper } = await mountForm(twoRows(), {
+			shuffle_questions: 1,
+			limit_questions_to: 1,
+		})
+		expect(doc(wrapper).total_marks).toBe(2)
+		const list = doc(wrapper).questions
+		list.splice(0, 0, ...list.splice(1, 1))
+		await flushPromises()
+
+		expect(doc(wrapper).total_marks).toBe(5)
+	})
+})
+
+describe('QuizForm: practical max marks', () => {
+	const practical = (wrapper: any) =>
+		wrapper
+			.findAll('label')
+			.find((l: any) => l.text().startsWith('Practical Max Marks'))!
+	const error = (wrapper: any) =>
+		wrapper.find('[data-testid="practical-error"]')
+	const lastSaved = () => setValueSubmit.mock.calls.at(-1)![0] as Doc
+
+	it('is a number field with its help text', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW], {
+			practical_max_marks: 0,
+		})
+		expect(practical(wrapper).find('input').attributes('type')).toBe('number')
+		expect(practical(wrapper).find('input').attributes('description')).toBe(
+			'0 means this test has no practical score'
+		)
+	})
+
+	it('saves a valid value as a number', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW], {
+			practical_max_marks: 0,
+		})
+		await practical(wrapper).find('input').setValue('12.5')
+		await pressSave()
+
+		expect(error(wrapper).exists()).toBe(false)
+		expect(lastSaved().practical_max_marks).toBe(12.5)
+	})
+
+	it.each(['1000', '999.995', '-1', '1.234'])(
+		'blocks the save for %s',
+		async (value) => {
+			const { wrapper } = await mountForm([CHOICE_ROW], {
+				practical_max_marks: 0,
+			})
+			await practical(wrapper).find('input').setValue(value)
+			await pressSave()
+
+			expect(error(wrapper).exists()).toBe(true)
+			expect(setValueSubmit).not.toHaveBeenCalled()
+		}
+	)
+
+	it('sends 0 when the field is emptied', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW], {
+			practical_max_marks: 5,
+		})
+		await practical(wrapper).find('input').setValue('')
+		await pressSave()
+
+		expect(lastSaved().practical_max_marks).toBe(0)
 	})
 })

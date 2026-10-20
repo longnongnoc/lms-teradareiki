@@ -45,6 +45,12 @@
 			<div v-else-if="column.key == 'modified'" class="text-sm text-ink-gray-6">
 				{{ value }}
 			</div>
+			<div v-else-if="column.key == 'practical_max_marks'">
+				{{ Number(value) ? value : '-' }}
+			</div>
+			<div v-else-if="column.key == 'total_questions'">
+				{{ Number(value) || 0 }}
+			</div>
 			<div v-else>{{ value }}</div>
 		</template>
 
@@ -111,7 +117,9 @@ const quizzes = createListResource({
 		'name',
 		'title',
 		'passing_percentage',
+		'practical_max_marks',
 		'total_marks',
+		'total_questions',
 		'show_answers',
 		'max_attempts',
 		'modified',
@@ -181,6 +189,14 @@ const quizColumns = computed(() => {
 			icon: 'lucide-file-text',
 		},
 		{
+			label: __('Questions'),
+			key: 'total_questions',
+			hideOnMobile: true,
+			width: 0.5,
+			align: 'left',
+			icon: 'lucide-list-checks',
+		},
+		{
 			label: __('Total Marks'),
 			key: 'total_marks',
 			hideOnMobile: true,
@@ -195,6 +211,14 @@ const quizColumns = computed(() => {
 			width: 1,
 			align: 'left',
 			icon: 'lucide-percent',
+		},
+		{
+			label: __('Practical'),
+			key: 'practical_max_marks',
+			hideOnMobile: true,
+			width: 0.5,
+			align: 'left',
+			icon: 'lucide-clipboard-check',
 		},
 		{
 			label: __('Max Attempts'),

@@ -11,8 +11,25 @@ import {
 	toBackendType,
 	toUiType,
 } from '@/utils/quizQuestion'
+import {
+	blanksPayload,
+	extractBlankIds,
+	parseBlanks,
+	syncBlanks,
+	totalBlankMarks,
+} from '@/utils/fillBlank'
 
 const DOCTYPE = 'LMS Question'
+
+// `blanks` goes out as the server's child rows for a Fill Blank question. For any
+// other type it is left off, unless rows are still held from before a type switch:
+// then an empty list clears them.
+const withBlanks = (doc) => {
+	const { blanks, ...rest } = doc
+	if (rest.type === 'Fill Blank')
+		return { ...rest, blanks: blanksPayload(blanks) }
+	return blanks?.length ? { ...rest, blanks: [] } : rest
+}
 
 // No onError, so the promise rejects and the caller owns the failure. Nothing
 // catches it behind them: main.js sets `resourceFetcher` only, and frappe-ui
@@ -43,6 +60,7 @@ export function useQuestionDoc({
 		...toBackendType(seedUiType),
 		marks,
 		...blankOptionFields(),
+		blanks: [],
 	})
 
 	const uiType = ref(seedUiType)
@@ -53,14 +71,15 @@ export function useQuestionDoc({
 
 	// applyDoc copies only keys the skeleton already has, so this stays the whole
 	// document however many fields the server grows.
-	const fields = () => ({ ...working })
+	const fields = () => withBlanks({ ...working })
 
 	// For the surface that leaves working.type alone while editing and resolves
 	// it once, on save.
-	const fieldsWithType = () => ({
-		...working,
-		...toBackendType(uiType.value),
-	})
+	const fieldsWithType = () =>
+		withBlanks({
+			...working,
+			...toBackendType(uiType.value),
+		})
 
 	/** `overrides` win over the doc, for a field the caller owns rather than the bank record. */
 	const applyDoc = (doc, overrides) => {
@@ -72,9 +91,24 @@ export function useQuestionDoc({
 		})
 		// The server sends these as 1/0/null and the checkboxes want a number, so
 		// a null against a 0 would read as an edit to anything diffing the two.
-		for (let i = 1; i <= MAX_OPTIONS; i++)
+		for (let i = 1; i <= MAX_OPTIONS; i++) {
 			working[`is_correct_${i}`] = doc[`is_correct_${i}`] ? 1 : 0
+			// The server sends an empty image as null. '' keeps a cleared image equal to
+			// a never-set one, and Save sends '' to clear the stored file.
+			working[`option_${i}_image`] = doc[`option_${i}_image`] || ''
+		}
 		if (overrides) Object.assign(working, overrides)
+		// Rows come back with name, idx and parent; the editor keeps three fields,
+		// in the order the tokens appear, and the question's marks are their sum.
+		working.blanks = []
+		if (doc.type === 'Fill Blank') {
+			working.blanks = syncBlanks(
+				parseBlanks(doc.blanks),
+				extractBlankIds(working.question)
+			)
+			const total = totalBlankMarks(working.blanks)
+			if (total > 0) working.marks = total
+		}
 		uiType.value = toUiType(doc)
 		loaded.value = true
 	}

@@ -115,6 +115,7 @@ permission_query_conditions = {
 	"LMS Assignment": "lms.lms.permissions.assignment_query_conditions",
 	"LMS Programming Exercise": "lms.lms.permissions.programming_exercise_query_conditions",
 	"LMS Quiz Submission": "lms.lms.permissions.quiz_submission_query_conditions",
+	"LMS Quiz Practical Score": "lms.lms.permissions.practical_score_query_conditions",
 	"LMS Assignment Submission": "lms.lms.permissions.assignment_submission_query_conditions",
 	"LMS Programming Exercise Submission": "lms.lms.permissions.programming_exercise_submission_query_conditions",
 }
@@ -141,6 +142,7 @@ has_permission = {
 	"LMS Programming Exercise": "lms.lms.permissions.assessment_has_permission",
 	"LMS Question": "lms.lms.permissions.has_authored_content_permission",
 	"LMS Quiz Submission": "lms.lms.permissions.assessment_submission_has_permission",
+	"LMS Quiz Practical Score": "lms.lms.permissions.practical_score_has_permission",
 	"LMS Assignment Submission": "lms.lms.permissions.assessment_submission_has_permission",
 	"LMS Programming Exercise Submission": "lms.lms.permissions.assessment_submission_has_permission",
 }
@@ -183,7 +185,10 @@ doc_events = {
 	# own children, and Document.update_child_table db_updates every submitted row by
 	# name with no ownership check. A save of the thief's own quiz naming a foreign row
 	# is checked for `write` on the destination only, and reaches the child gate never.
-	"LMS Quiz": {"validate": CHILD_ROW_MOVE_GATE, "after_insert": "lms.lms.telemetry.quiz_created"},
+	"LMS Quiz": {
+		"validate": [CHILD_ROW_MOVE_GATE, "lms.lms.quiz_results.validate_practical_max_marks"],
+		"after_insert": "lms.lms.telemetry.quiz_created",
+	},
 	"LMS Programming Exercise": {"validate": CHILD_ROW_MOVE_GATE},
 	"LMS Assignment": {
 		"validate": CHILD_ROW_MOVE_GATE,

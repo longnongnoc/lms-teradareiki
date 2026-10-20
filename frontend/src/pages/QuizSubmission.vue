@@ -116,7 +116,26 @@
 									<span class="me-2 text-ink-gray-4">
 										{{ __('Q{0}:').format(index + 1) }}
 									</span>
-									<span v-safe-html:rich="row.question" />
+									<template v-if="isFillBlankRow(row)">
+										<QuizQuestionBody
+											v-if="blankReview(row)"
+											class="mt-1 [&_img]:h-auto [&_img]:max-w-full"
+											review
+											fillBlank
+											:html="row.question"
+											:results="blankResults(row)"
+										/>
+										<span
+											v-else-if="fillBlankReview.error"
+											class="text-ink-gray-6"
+										>
+											{{ __('Could not load the blank results.') }}
+										</span>
+										<span v-else class="text-ink-gray-6">{{
+											__('Loading')
+										}}</span>
+									</template>
+									<span v-else v-safe-html:rich="row.question" />
 								</div>
 								<span
 									class="mt-2 size-1.5 shrink-0 rounded-full"
@@ -126,7 +145,10 @@
 							<!-- Same shape as the question above: the label runs inline with
 							     the text it introduces, so a wrapped answer returns to the
 							     left edge instead of hanging under its first word. -->
+							<!-- A Fill Blank answer is a JSON map of blank to text, so the question
+							     above carries it filled in rather than this line. -->
 							<div
+								v-if="!isFillBlankRow(row)"
 								class="text-base leading-6 text-ink-gray-6 [&_p]:m-0 [&_p]:inline"
 							>
 								<span
@@ -134,7 +156,7 @@
 								>
 									{{ __('Answer:') }}
 								</span>
-								<span v-safe-html:rich="row.answer" />
+								<span v-safe-html:rich="answerText(row)" />
 							</div>
 						</div>
 						<!-- Only an open-ended answer is a judgement call; a choice was
@@ -223,6 +245,35 @@
 							</div>
 						</div>
 					</div>
+				</div>
+
+				<!-- Read-only context for the grader: where this member stands on
+				     the quiz overall, which an attempt alone does not say. -->
+				<div
+					v-if="overall"
+					data-testid="overall-result"
+					class="border-t px-5 py-5"
+				>
+					<div class="mb-1.5 text-xs text-ink-gray-6">
+						{{ __('Overall result') }}
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						<Badge :theme="statusTheme(overall.status)">
+							{{ statusLabel(overall.status) }}
+						</Badge>
+						<span
+							v-if="overall.total_score !== null"
+							class="text-sm font-medium tabular-nums text-ink-gray-8"
+						>
+							{{ formatTotal(overall) }}
+						</span>
+					</div>
+					<router-link
+						:to="{ name: 'QuizResults' }"
+						class="mt-2 inline-block text-xs text-ink-gray-6 underline underline-offset-2 hover:text-ink-gray-8"
+					>
+						{{ __('View all results') }}
+					</router-link>
 				</div>
 			</aside>
 
@@ -358,6 +409,7 @@ import {
 	Badge,
 	Avatar,
 	Popover,
+	call,
 	usePageMeta,
 	toast,
 } from 'frappe-ui'
@@ -367,6 +419,16 @@ import { safeUrl } from '@/utils/safeUrl'
 import PageHeader from '@/components/Layouts/pages/PageHeader.vue'
 import PageBody from '@/components/Layouts/pages/PageBody.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
+import QuizQuestionBody from '@/components/Quiz/QuizQuestionBody.vue'
+import { indexBlankResults } from '@/utils/fillBlank'
+import { describeChoiceAnswer } from '@/utils/optionKey'
+import {
+	SUMMARY_METHOD,
+	formatTotal,
+	isResultSummary,
+	statusLabel,
+	statusTheme,
+} from '@/utils/quizResults'
 import ShortcutTooltip from '@/components/ShortcutTooltip.vue'
 import {
 	useKeyboardShortcuts,
@@ -425,6 +487,44 @@ const openEndedCheck = createResource({
 
 const isOpenEnded = computed(() => !!openEndedCheck.data)
 
+// Per-blank results, keyed by question name. Fetched only for a submission that
+// has a Fill Blank answer; the server adds each blank's accepted answers only
+// when this viewer may see them.
+const fillBlankReview = createResource({
+	url: 'lms.lms.doctype.lms_quiz.lms_quiz.get_fill_blank_review',
+	makeParams() {
+		return { submission: props.submission }
+	},
+	auto: false,
+})
+
+const isFillBlankRow = (row) => row.question_type === 'Fill Blank'
+
+// A choice answer is its option keys joined with ", ". An image-only option has
+// no text to show here, so it reads as "Image option N".
+const answerText = (row) =>
+	row.question_type === 'Choices'
+		? describeChoiceAnswer(row.answer, (slot) =>
+				__('Image option {0}').format(slot)
+		  )
+		: row.answer
+
+const hasFillBlankRows = computed(() =>
+	(submissionDetails.doc?.result || []).some(isFillBlankRow)
+)
+
+watch(
+	hasFillBlankRows,
+	(has) => {
+		if (has && !fillBlankReview.data && !fillBlankReview.loading)
+			fillBlankReview.fetch()
+	},
+	{ immediate: true }
+)
+
+const blankReview = (row) => fillBlankReview.data?.[row.question_name]
+const blankResults = (row) => indexBlankResults(blankReview(row)?.results)
+
 // Said in two places — the header spells it out, the popover carries it on a
 // phone — so it is written once.
 const ownSubmissionNotice = __('You cannot grade your own submission.')
@@ -460,6 +560,27 @@ watch(
 )
 
 const memberImage = computed(() => memberImageResource.data?.user_image || '')
+
+// Context only: a failed call leaves the card out and the page unaffected.
+const overall = ref(null)
+let overallRequest = 0
+
+watch(
+	() => [submissionDetails.doc?.quiz, submissionDetails.doc?.member],
+	async ([quiz, member]) => {
+		const request = ++overallRequest
+		if (!quiz || !member) return
+		try {
+			const data = await call(SUMMARY_METHOD, { quiz, member })
+			if (request === overallRequest) {
+				overall.value = isResultSummary(data) ? data : null
+			}
+		} catch {
+			if (request === overallRequest) overall.value = null
+		}
+	},
+	{ immediate: true }
+)
 
 const formatDate = (value) => {
 	if (!value) return ''

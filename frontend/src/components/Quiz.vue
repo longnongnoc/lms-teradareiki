@@ -85,6 +85,7 @@
 						:passingPercentage="quiz.data.passing_percentage"
 						:attemptsLeft="attemptsLeft"
 					/>
+					<QuizResultSummary v-if="!preview" :quiz="quiz.data.name" />
 
 					<div
 						v-if="
@@ -284,6 +285,13 @@
 			<div v-else-if="!quizSubmission.data">
 				<template v-for="(question, qtidx) in questions" :key="question.name">
 					<div v-if="qtidx == activeQuestion - 1 && questionDetails.data">
+						<h3
+							v-if="question.group"
+							data-testid="quiz-section-heading"
+							class="border-b border-outline-gray-1 px-3.5 py-2 text-sm-semibold text-ink-gray-8 break-words"
+						>
+							{{ question.group }}
+						</h3>
 						<div
 							class="flex h-11 items-center gap-3 border-b border-outline-gray-1 bg-surface-gray-1 px-3.5"
 						>
@@ -330,11 +338,17 @@
 											: getInstructions(questionDetails.data)
 									}}
 								</div>
-								<div
+								<QuizQuestionBody
 									:id="questionTextId"
 									class="text-p-base font-semibold text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
-									v-safe-html:rich="questionDetails.data.question"
-								></div>
+									:html="questionDetails.data.question"
+									:fillBlank="isFillBlank"
+									:review="!!fillBlankGrade"
+									:disabled="!!showAnswers.length"
+									:answers="blankAnswers"
+									:results="fillBlankResultMap"
+									@update:blank="setBlankAnswer"
+								/>
 							</div>
 
 							<div
@@ -344,7 +358,7 @@
 								class="flex flex-col gap-1.5"
 							>
 								<template v-for="index in MAX_OPTIONS" :key="index">
-									<template v-if="questionDetails.data[`option_${index}`]">
+									<template v-if="optionPresent(index)">
 										<OptionRow>
 											<template #control>
 												<input
@@ -363,11 +377,32 @@
 													@change="markAnswer(index)"
 												/>
 											</template>
-											<span
-												v-safe-html:rich="
-													questionDetails.data[`option_${index}`]
-												"
-											></span>
+											<span class="flex min-w-0 flex-col items-start gap-2">
+												<button
+													v-if="optionImageUrl(index)"
+													type="button"
+													class="max-w-full rounded-4 focus-visible:outline-2"
+													data-testid="option-image"
+													:aria-label="
+														__('Enlarge image: {0}').format(
+															__('Option {0}').format(index)
+														)
+													"
+													@click.prevent="zoomOptionImage(index)"
+												>
+													<img
+														:src="safeUrl(optionImageUrl(index))"
+														:alt="__('Option {0}').format(index)"
+														class="max-h-40 max-w-full cursor-zoom-in object-contain"
+													/>
+												</button>
+												<span
+													v-if="optionHasText(index)"
+													v-safe-html:rich="
+														questionDetails.data[`option_${index}`]
+													"
+												></span>
+											</span>
 											<template
 												v-if="showAnswers.length && quiz.data.show_answers"
 												#end
@@ -417,6 +452,26 @@
 										:correct="choiceCorrect"
 									>
 										{{ choiceCorrect ? __('Correct') : __('Incorrect') }}
+									</FeedbackBanner>
+								</div>
+								<ImageZoomOverlay
+									v-if="optionZoom"
+									:url="optionZoom.url"
+									:alt="optionZoom.alt"
+									@close="optionZoom = null"
+								/>
+							</div>
+							<div
+								v-else-if="questionDetails.data.type == 'Fill Blank'"
+								class="space-y-3"
+							>
+								<div role="status" class="empty:absolute">
+									<FeedbackBanner
+										v-if="fillBlankGrade && quiz.data.show_answers"
+										data-testid="quiz-feedback"
+										:correct="!!fillBlankGrade.is_correct"
+									>
+										{{ fillBlankFeedback }}
 									</FeedbackBanner>
 								</div>
 							</div>
@@ -564,6 +619,11 @@
 							</li>
 						</ul>
 					</template>
+					<QuizResultSummary
+						v-if="!preview"
+						:quiz="quiz.data.name"
+						:refresh-key="quizSubmission.data.submission"
+					/>
 					<p v-if="endedNote" class="text-p-base text-ink-gray-7">
 						{{ endedNote }}
 					</p>
@@ -584,6 +644,36 @@
 								{{ __('Try again') }}
 							</Button>
 						</div>
+					</div>
+				</div>
+				<div
+					v-if="fillBlankReviewItems.length"
+					data-testid="fill-blank-review"
+					class="space-y-4 border-t border-outline-gray-1 p-3.5"
+				>
+					<h3 class="text-sm-semibold text-ink-gray-9">
+						{{ __('Fill in the blanks review') }}
+					</h3>
+					<div
+						v-for="item in fillBlankReviewItems"
+						:key="item.name"
+						class="space-y-2"
+					>
+						<div
+							class="flex items-center justify-between gap-3 text-sm text-ink-gray-6"
+						>
+							<span>{{ __('Question {0}').format(item.number) }}</span>
+							<span class="tabular-nums">
+								{{ __('{0} of {1} marks').format(item.marks, item.marksOutOf) }}
+							</span>
+						</div>
+						<QuizQuestionBody
+							class="text-p-base leading-8 text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+							review
+							fillBlank
+							:html="item.question"
+							:results="item.results"
+						/>
 					</div>
 				</div>
 				<div
@@ -631,6 +721,7 @@
 						).format(index)
 					"
 					:aria-current="activeQuestion == index ? 'step' : undefined"
+					:title="questions[index - 1]?.group || undefined"
 					@click="switchQuestion(index)"
 					class="relative flex h-6 w-6 cursor-pointer items-center justify-center rounded-full text-sm"
 					:class="{
@@ -831,6 +922,9 @@ import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import router from '@/router'
 import QuizActivityLog from '@/components/Quiz/QuizActivityLog.vue'
+import QuizQuestionBody from '@/components/Quiz/QuizQuestionBody.vue'
+import ImageZoomOverlay from '@/components/Quiz/ImageZoomOverlay.vue'
+import QuizResultSummary from '@/components/Quiz/QuizResultSummary.vue'
 import ProctoringMonitor from '@/components/ProctoringMonitor.vue'
 import AssessmentCard from '@/components/Assessment/AssessmentCard.vue'
 import AssessmentCardHeader from '@/components/Assessment/AssessmentCardHeader.vue'
@@ -838,6 +932,22 @@ import OptionRow from '@/components/Assessment/OptionRow.vue'
 import FeedbackBanner from '@/components/Assessment/FeedbackBanner.vue'
 import QuizStats from '@/components/Assessment/QuizStats.vue'
 import { attemptsLeftLabel, formatQuizSubtitle } from '@/utils/quizSummary'
+import { orderQuizQuestions } from '@/utils/quizSections'
+import { safeUrl } from '@/utils/safeUrl'
+import {
+	isOptionPresent,
+	optionImage,
+	optionKey,
+	optionText,
+	slotForKey,
+} from '@/utils/optionKey'
+import {
+	hasFillBlankAnswer,
+	indexBlankResults,
+	parseFillBlankAnswer,
+	serializeFillBlankAnswers,
+} from '@/utils/fillBlank'
+import type { FillBlankGrade } from '@/utils/fillBlank'
 import type {
 	AnswerVerdict,
 	QuizAttempt,
@@ -865,6 +975,25 @@ const activeQuestion = ref(0)
 const currentQuestion = ref('')
 const MAX_OPTIONS = 10
 const selectedOptions = ref<number[]>(Array(MAX_OPTIONS).fill(0))
+const optionZoom = ref<{ url: string; alt: string } | null>(null)
+
+// An option is there when it has text or an image, and its answer key is the
+// trimmed text, or "[image:N]" for an image alone.
+const optionPresent = (slot: number): boolean =>
+	isOptionPresent(
+		optionText(questionDetails.data, slot),
+		optionImage(questionDetails.data, slot)
+	)
+const optionHasText = (slot: number): boolean =>
+	!!optionText(questionDetails.data, slot).trim()
+const optionImageUrl = (slot: number): string =>
+	optionImage(questionDetails.data, slot)
+const zoomOptionImage = (slot: number): void => {
+	optionZoom.value = {
+		url: optionImageUrl(slot),
+		alt: __('Option {0}').format(slot),
+	}
+}
 
 const showAnswers = reactive<AnswerVerdict[]>([])
 const questions = ref<QuizQuestionRow[]>([])
@@ -872,6 +1001,10 @@ const attemptedQuestions = ref<number[]>([])
 const reviewQuestions = ref<number[]>([])
 const showSubmissionConfirmation = ref(false)
 const possibleAnswer = ref<string | null>(null)
+// Fill Blank: what the learner has typed, by blank id.
+const blankAnswers = ref<Record<string, string>>({})
+// The graded answer check_answer returns once a Fill Blank question is checked.
+const fillBlankGrade = ref<FillBlankGrade | null>(null)
 const timer = ref(0)
 let timerInterval: ReturnType<typeof setInterval> | undefined
 const violationCount = ref(0)
@@ -1057,15 +1190,10 @@ const populateQuestions = () => {
 		(row: QuizQuestionRow) =>
 			row?.question && questionsByName.value[row.question]
 	)
-	if (data?.shuffle_questions) {
-		let next = shuffleArray([...resolvable])
-		if (data.limit_questions_to) {
-			next = next.slice(0, data.limit_questions_to)
-		}
-		questions.value = next
-	} else {
-		questions.value = resolvable
-	}
+	questions.value = orderQuizQuestions(resolvable, {
+		shuffle: !!data?.shuffle_questions,
+		limit: data?.limit_questions_to,
+	})
 }
 
 const setupTimer = () => {
@@ -1240,14 +1368,6 @@ watch(scheduleBlockReason, (reason, previous) => {
 	}
 })
 
-const shuffleArray = <T>(array: T[]): T[] => {
-	for (let i = array.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1))
-		;[array[i], array[j]] = [array[j], array[i]]
-	}
-	return array
-}
-
 const attempts = createResource<QuizAttempt[]>({
 	url: 'frappe.client.get_list',
 	makeParams() {
@@ -1322,6 +1442,8 @@ watch(activeQuestion, (value) => {
 	if (!row?.question) return
 	currentQuestion.value = row.question
 	questionDetails.data = questionsByName.value[currentQuestion.value] || null
+	blankAnswers.value = {}
+	fillBlankGrade.value = null
 	if (!quiz.data?.show_answers) {
 		loadSavedAnswers()
 	}
@@ -1335,6 +1457,8 @@ const switchQuestion = (questionNumber: number): void => {
 		}
 		addToLocalStorage()
 		resetQuestion()
+	} else {
+		forgetClearedFillBlank()
 	}
 
 	if (questionNumber < 1 || questionNumber > questions.value.length) return
@@ -1356,12 +1480,11 @@ const loadSavedAnswers = (): void => {
 			if (localAnswers.length) {
 				if (details.type == 'Choices') {
 					localAnswers.forEach((answer) => {
-						for (let i = 1; i <= MAX_OPTIONS; i++) {
-							if (details[`option_${i}`] == answer) {
-								selectedOptions.value[i - 1] = 1
-							}
-						}
+						const slot = slotForKey(details, answer)
+						if (slot) selectedOptions.value[slot - 1] = 1
 					})
+				} else if (details.type == 'Fill Blank') {
+					blankAnswers.value = parseFillBlankAnswer(localAnswers[0])
 				} else {
 					possibleAnswer.value = localAnswers[0] ?? null
 				}
@@ -1453,6 +1576,85 @@ const summaryLog = computed<ViolationEvent[]>(() =>
 let attemptStartedAt: number | null = null
 const secondsIntoAttempt = (): number | undefined =>
 	attemptStartedAt === null ? undefined : (Date.now() - attemptStartedAt) / 1000
+
+const isFillBlank = computed(() => questionDetails.data?.type === 'Fill Blank')
+
+const setBlankAnswer = (id: string, value: string): void => {
+	blankAnswers.value = { ...blankAnswers.value, [id]: value }
+}
+
+const fillBlankResultMap = computed(() =>
+	fillBlankGrade.value ? indexBlankResults(fillBlankGrade.value.results) : null
+)
+
+const fillBlankFeedback = computed(() => {
+	const grade = fillBlankGrade.value
+	if (!grade) return ''
+	return [
+		grade.is_correct ? __('Correct') : __('Incorrect'),
+		__('{0} of {1} marks').format(grade.marks, grade.marks_out_of),
+	].join(', ')
+})
+
+// A Fill Blank question whose text was all deleted has to lose the answer saved
+// on an earlier visit, or that old answer is the one submitted.
+const forgetClearedFillBlank = (): void => {
+	if (questionDetails.data?.type != 'Fill Blank' || !quiz.data) return
+	attemptedQuestions.value = attemptedQuestions.value.filter(
+		(number) => number !== activeQuestion.value
+	)
+	const saved = readSavedAnswers()
+	if (!saved) return
+	localStorage.setItem(
+		quiz.data.title,
+		JSON.stringify(
+			saved.filter((entry) => entry.question_name != currentQuestion.value)
+		)
+	)
+}
+
+// Per-blank results of the submission just made, fetched only when the quiz has
+// a Fill Blank question. The server leaves the accepted answers out unless this
+// viewer may see them.
+const fillBlankReview = createResource<Record<string, FillBlankGrade>>({
+	url: 'lms.lms.doctype.lms_quiz.lms_quiz.get_fill_blank_review',
+	makeParams() {
+		return { submission: quizSubmission.data?.submission }
+	},
+})
+
+const hasFillBlankQuestions = computed(() =>
+	questions.value.some(
+		(row) => questionsByName.value[row.question]?.type === 'Fill Blank'
+	)
+)
+
+watch(
+	() => quizSubmission.data?.submission,
+	(submission) => {
+		if (submission && hasFillBlankQuestions.value) fillBlankReview.fetch()
+	}
+)
+
+const fillBlankReviewItems = computed(() => {
+	const review = fillBlankReview.data
+	if (!review || !quizSubmission.data) return []
+	return questions.value.flatMap((row, index) => {
+		const grade = review[row.question]
+		const details = questionsByName.value[row.question]
+		if (!grade || details?.type !== 'Fill Blank') return []
+		return [
+			{
+				name: row.question,
+				number: index + 1,
+				question: details.question,
+				marks: grade.marks,
+				marksOutOf: grade.marks_out_of,
+				results: indexBlankResults(grade.results),
+			},
+		]
+	})
+})
 
 const passed = computed(() => {
 	const result = quizSubmission.data
@@ -1573,8 +1775,24 @@ const getAnswers = (): Answer[] => {
 	if (!details) return answers
 	if (details.type == 'Choices') {
 		selectedOptions.value.forEach((value, index) => {
-			if (value) answers.push(details[`option_${index + 1}`])
+			const slot = index + 1
+			if (
+				value &&
+				isOptionPresent(optionText(details, slot), optionImage(details, slot))
+			)
+				answers.push(optionKey(optionText(details, slot), slot))
 		})
+	} else if (details.type == 'Fill Blank') {
+		// Answered when any blank has text, so a question left blank is not an
+		// attempt in the progress bar, the navigation or the unanswered warning.
+		if (hasFillBlankAnswer(blankAnswers.value)) {
+			answers.push(
+				serializeFillBlankAnswers(
+					(details.blanks ?? []).map((blank) => blank.blank_id),
+					blankAnswers.value
+				)
+			)
+		}
 	} else {
 		answers.push(possibleAnswer.value)
 	}
@@ -1587,7 +1805,11 @@ const checkAnswer = (): void => {
 	const details = questionDetails.data
 	if (!quiz.data || !details) return
 	if (!answers.length) {
-		toast.warning(__('Please select an option'))
+		toast.warning(
+			details.type == 'Fill Blank'
+				? __('Please fill in at least one blank')
+				: __('Please select an option')
+		)
 		return
 	}
 
@@ -1611,6 +1833,10 @@ const checkAnswer = (): void => {
 						showAnswers[index] = undefined
 					}
 				})
+			} else if (details.type == 'Fill Blank' && data && !Array.isArray(data)) {
+				const grade = data as unknown as FillBlankGrade
+				fillBlankGrade.value = grade
+				showAnswers.push(grade.is_correct ? 1 : 0)
 			} else if (!Array.isArray(data)) {
 				showAnswers.push(data)
 			}
@@ -1663,6 +1889,8 @@ const resetQuestion = () => {
 	)
 	showAnswers.length = 0
 	possibleAnswer.value = null
+	blankAnswers.value = {}
+	fillBlankGrade.value = null
 }
 
 // One promise for the submit in flight, from the moment it is asked for (submitQuiz
@@ -1690,6 +1918,8 @@ const submitQuiz = (reason: SubmissionReason = 'manual'): void => {
 	if (!quiz.data?.show_answers) {
 		if (questionDetails.data?.type == 'Open Ended' || getAnswers().length) {
 			addToLocalStorage()
+		} else {
+			forgetClearedFillBlank()
 		}
 		submitTimeout = setTimeout(() => {
 			submitTimeout = undefined
@@ -1759,6 +1989,9 @@ const resetQuiz = () => {
 	)
 	showAnswers.length = 0
 	possibleAnswer.value = null
+	blankAnswers.value = {}
+	fillBlankGrade.value = null
+	fillBlankReview.reset()
 	attemptedQuestions.value = []
 	reviewQuestions.value = []
 	quizSubmission.reset()
@@ -1777,6 +2010,7 @@ const getInstructions = (question: QuizQuestionDetails): string => {
 	if (question.type == 'Choices')
 		if (question.multiple) return __('Choose all answers that apply')
 		else return __('Choose one answer')
+	else if (question.type == 'Fill Blank') return __('Fill in each blank')
 	else return __('Type your answer')
 }
 
@@ -1790,7 +2024,10 @@ const handleSubmitClick = (): void => {
 }
 
 const recordCurrentAttempt = () => {
-	if (!getAnswers().length) return
+	if (!getAnswers().length) {
+		forgetClearedFillBlank()
+		return
+	}
 	if (!attemptedQuestions.value.includes(activeQuestion.value)) {
 		attemptedQuestions.value.push(activeQuestion.value)
 	}
