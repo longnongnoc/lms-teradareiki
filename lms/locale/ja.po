@@ -9051,6 +9051,24 @@ msgstr "解答を表示"
 msgid "Show Answers"
 msgstr "解答を表示"
 
+#. Label of the show_answer_review (Check) field in DocType 'LMS Quiz'
+#: frontend/src/pages/Forms/QuizForm.vue lms/lms/doctype/lms_quiz/lms_quiz.json
+msgid "Show Answer Review"
+msgstr "解答の見直しを表示"
+
+#. Description of the show_answer_review (Check) field in DocType 'LMS Quiz'
+#: lms/lms/doctype/lms_quiz/lms_quiz.json
+msgid "After submitting, learners see which blanks of a fill in the blanks question were right or wrong. The accepted answers are shown only when Show Answers is on."
+msgstr "提出後、受講者は穴埋め問題の各空欄が正解か不正解かを確認できます。正解として許容する答えは、「解答を表示」がオンの場合のみ表示されます。"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "After submitting, show which blanks of a fill in the blanks question were right or wrong."
+msgstr "提出後、穴埋め問題の各空欄が正解か不正解かを表示します。"
+
+#: frontend/src/pages/QuizSubmission.vue
+msgid "The blank results are not shown for this quiz."
+msgstr "このクイズでは空欄ごとの結果は表示されません。"
+
 #. Label of the show_submission_history (Check) field in DocType 'LMS Quiz'
 #: frontend/src/pages/Forms/QuizForm.vue:276
 #: lms/lms/doctype/lms_quiz/lms_quiz.json
@@ -51673,6 +51691,14 @@ msgstr "{0}行目: 空欄IDは必須です。"
 msgid "Row {0}: Blank ID {1} is duplicated."
 msgstr "{0}行目: 空欄ID {1} が重複しています。"
 
+#: lms/lms/doctype/lms_question/lms_question.py
+msgid "Row {0}: Blank ID {1} must be a number, such as 1 or 2."
+msgstr "{0}行目: 空欄ID {1} は 1 や 2 のような数字にしてください。"
+
+#: lms/lms/doctype/lms_question/lms_question.py
+msgid "Row {0}: Accepted answer {1} for blank {2} is empty once spaces and punctuation are ignored."
+msgstr "{0}行目: 空欄 {2} の正解 {1} は、スペースと句読点を無視すると空になります。"
+
 #: lms/lms/doctype/lms_question/lms_question.py:195
 msgid "Row {0}: Add at least one accepted answer for blank {1}."
 msgstr "{0}行目: 空欄 {1} に正解として許容する答えを1つ以上追加してください。"
@@ -51706,8 +51732,8 @@ msgid "Fill Blank"
 msgstr "穴埋め"
 
 #: lms/lms/doctype/lms_question/lms_question.json
-msgid "Use {{1}}, {{2}}, ... in the question text to mark each blank."
-msgstr "問題文中で {{1}}, {{2}}, ... を使って各空欄の位置を示します。"
+msgid "Use [[1]], [[2]], ... in the question text to mark each blank."
+msgstr "問題文中で [[1]], [[2]], ... を使って各空欄の位置を示します。"
 
 #: lms/lms/doctype/lms_question_blank/lms_question_blank.json
 msgid "Blank ID"
