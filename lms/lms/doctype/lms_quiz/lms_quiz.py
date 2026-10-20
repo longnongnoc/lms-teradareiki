@@ -598,12 +598,19 @@ def process_results(results: list, quiz_details: dict):
 
 
 def _grade_blanks(result: dict, question_details, quiz_details):
-	"""One question, many blanks: marks are split evenly across blanks (partial credit)."""
+	"""One question, many blanks: marks are split evenly across blanks (partial credit,
+	rounded to the nearest mark). Full marks only when every blank is right."""
 	verdicts = check_blank_answers(question_details.question, result["answer"])
-	right = sum(verdicts)
-	result["answer"] = " / ".join(result["answer"][: len(verdicts)])
-	result["is_correct"] = 1 if verdicts and right == len(verdicts) else 0
-	result["marks"] = cint(question_details.marks) * right // len(verdicts) if verdicts else 0
+	right, total, marks = sum(verdicts), len(verdicts), cint(question_details.marks)
+	result["answer"] = " / ".join(result["answer"][:total])
+	result["is_correct"] = 1 if total and right == total else 0
+	if not total:
+		result["marks"] = 0
+	elif right == total:
+		result["marks"] = marks
+	else:
+		# Round half up, but never reach full marks with a blank wrong.
+		result["marks"] = min((2 * marks * right + total) // (2 * total), max(marks - 1, 0))
 	if not right and quiz_details.enable_negative_marking:
 		result["marks"] = -quiz_details.marks_to_cut
 
@@ -806,20 +813,20 @@ def check_input_answers(question: str, answer: str):
 
 def _normalise_blank(text) -> str:
 	# NFKC folds half-width kana and full-width latin, so ﾍﾞﾝﾀﾞｰ matches ベンダー.
-	return unicodedata.normalize("NFKC", text).strip() if isinstance(text, str) else ""
+	# Whitespace runs collapse so a stray double space is not a wrong answer.
+	return " ".join(unicodedata.normalize("NFKC", text).split()) if isinstance(text, str) else ""
 
 
 def check_blank_answers(question: str, answers: list) -> list[int]:
 	"""1/0 per blank, in order. Accepted answers for a blank are the `|`-separated
-	entries on its line of LMS Question.blank_answers, matched like User Input."""
+	entries on its line of LMS Question.blank_answers. Unlike User Input this is an
+	exact match: blanks are often one word, where a fuzzy score lets near-misses pass."""
 	raw = frappe.db.get_value("LMS Question", question, "blank_answers") or ""
 	verdicts = []
-	for index, line in enumerate(line for line in raw.splitlines() if line.strip()):
+	for index, line in enumerate(raw.rstrip().splitlines()):
 		given = _normalise_blank(answers[index] if index < len(answers) else "")
-		accepted = [_normalise_blank(a) for a in line.split("|")]
-		verdicts.append(
-			int(bool(given) and any(a and fuzz.token_sort_ratio(a, given) > 85 for a in accepted))
-		)
+		accepted = {_normalise_blank(a) for a in line.split("|")} - {""}
+		verdicts.append(int(bool(given) and given in accepted))
 	return verdicts
 
 
