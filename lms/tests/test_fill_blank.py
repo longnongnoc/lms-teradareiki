@@ -15,6 +15,7 @@ fill_blank = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(fill_blank)
 
 normalize_answer = fill_blank.normalize_answer
+normalize_answer_morphemes = fill_blank.normalize_answer_morphemes
 parse_accepted_answers = fill_blank.parse_accepted_answers
 empty_accepted_answers = fill_blank.empty_accepted_answers
 extract_blank_ids = fill_blank.extract_blank_ids
@@ -29,8 +30,26 @@ needs_sudachi = pytest.mark.skipif(
 )
 
 
+@pytest.fixture(autouse=True)
+def _fresh_morpheme_cache():
+	"""The morpheme step caches per text, so a result made with a stubbed tokenizer must not leak."""
+	fill_blank._sudachi_normalized_form.cache_clear()
+	yield
+	fill_blank._sudachi_normalized_form.cache_clear()
+
+
 def _same(first, second):
 	return normalize_answer(first) == normalize_answer(second)
+
+
+def _same_morphemes(first, second):
+	return normalize_answer_morphemes(first) == normalize_answer_morphemes(second)
+
+
+def _without_sudachi(monkeypatch):
+	monkeypatch.setitem(sys.modules, "sudachipy", None)
+	monkeypatch.setattr(fill_blank, "_sudachi", None)
+	monkeypatch.setattr(fill_blank, "_sudachi_loaded", False)
 
 
 def _blank(blank_id, answers, marks=1):
@@ -164,37 +183,37 @@ class TestNormalizeAnswer:
 		assert normalize_answer("。、・「」") == ""
 		assert normalize_answer(" - . , ! ") == ""
 
-	@needs_sudachi
-	def test_okurigana_variants_are_one_word(self):
-		assert _same("取付", "取り付け")
-		assert _same("取付け", "取り付け")
-		assert _same("取付", "取付け")
+	def test_plain_key_does_not_use_the_dictionary(self):
+		assert not _same("取付", "取り付け")
+		assert _same("ガス", "がす")
+		assert _same("コンデンサー", "こんでんさー")
 
 	@needs_sudachi
-	def test_homophones_stay_apart(self):
-		assert not _same("機関", "期間")
-		assert not _same("機関", "器官")
-		assert not _same("期間", "器官")
+	def test_morpheme_key_joins_okurigana_variants(self):
+		assert _same_morphemes("取付", "取り付け")
+		assert _same_morphemes("取付け", "取り付け")
+		assert _same_morphemes("取付", "取付け")
+
+	@needs_sudachi
+	def test_morpheme_key_keeps_homophones_apart(self):
+		assert not _same_morphemes("機関", "期間")
+		assert not _same_morphemes("機関", "器官")
+		assert not _same_morphemes("期間", "器官")
 
 	@needs_sudachi
 	def test_latin_and_digits_are_not_touched_by_morphology(self):
-		assert normalize_answer("R410A") == "r410a"
-		assert normalize_answer("heat pump") == "heat pump"
+		assert normalize_answer_morphemes("R410A") == "r410a"
+		assert normalize_answer_morphemes("heat pump") == "heat pump"
 
-	def test_morphology_failure_is_skipped_and_logged_once(self, monkeypatch):
-		monkeypatch.setitem(sys.modules, "sudachipy", None)
-		monkeypatch.setattr(fill_blank, "_sudachi", None)
-		monkeypatch.setattr(fill_blank, "_sudachi_loaded", False)
+	def test_morpheme_key_without_sudachi_is_the_plain_key_and_logged_once(self, monkeypatch):
+		_without_sudachi(monkeypatch)
 		logged = []
 		monkeypatch.setattr(fill_blank, "_log_sudachi_unavailable", logged.append)
-		fill_blank._sudachi_normalized_form.cache_clear()
-		try:
-			assert normalize_answer("取付け") == "取付け"
-			assert normalize_answer("ネジ") == "ねじ"
-			assert normalize_answer("冷凍 サイクル") == "冷凍さいくる"
-			assert len(logged) == 1
-		finally:
-			fill_blank._sudachi_normalized_form.cache_clear()
+		for text in ("取付け", "ネジ", "冷凍 サイクル", "R-410A"):
+			assert normalize_answer_morphemes(text) == normalize_answer(text)
+		assert normalize_answer("ネジ") == "ねじ"
+		assert normalize_answer("冷凍 サイクル") == "冷凍さいくる"
+		assert len(logged) == 1
 
 	def test_morphology_error_on_one_text_falls_back_to_that_text(self, monkeypatch):
 		class Broken:
@@ -203,11 +222,7 @@ class TestNormalizeAnswer:
 
 		monkeypatch.setattr(fill_blank, "_sudachi", (Broken(), None))
 		monkeypatch.setattr(fill_blank, "_sudachi_loaded", True)
-		fill_blank._sudachi_normalized_form.cache_clear()
-		try:
-			assert normalize_answer("取付け") == "取付け"
-		finally:
-			fill_blank._sudachi_normalized_form.cache_clear()
+		assert normalize_answer_morphemes("取付け") == normalize_answer("取付け")
 
 
 class TestParseAcceptedAnswers:
@@ -227,6 +242,9 @@ class TestParseAcceptedAnswers:
 
 	def test_dedupes_after_normalization(self):
 		assert parse_accepted_answers("R-410A\nR410A\nr 410a\n冷凍。\n冷凍") == ["r410a", "r 410a", "冷凍"]
+
+	def test_dedupes_on_the_plain_key_only(self):
+		assert parse_accepted_answers("ガス\nがす") == ["がす"]
 
 	def test_punctuation_only_lines_are_dropped(self):
 		assert parse_accepted_answers("。\n-\n圧縮機") == ["圧縮機"]
@@ -351,6 +369,46 @@ class TestGradeFillBlank:
 	def test_extra_submitted_keys_are_ignored(self):
 		graded = grade_fill_blank([_blank("1", "a")], {"1": "a", "99": "a"})
 		assert len(graded["results"]) == 1
+
+
+class TestDualKeyMatching:
+	def test_hiragana_spelling_of_a_katakana_answer_is_correct(self):
+		assert _grade_one("ガス", "がす")
+		assert _grade_one("コンデンサー", "こんでんさー")
+		assert _grade_one("コンデンサー", "コンデンサ")
+		assert _grade_one("ネジ", "ねじ")
+
+	def test_plain_match_survives_the_dictionary_reading_kana_as_another_word(self):
+		assert normalize_answer("がす") == normalize_answer("ガス")
+
+	@needs_sudachi
+	def test_okurigana_variants_are_correct_on_the_morpheme_key(self):
+		assert _grade_one("取り付け", "取付")
+		assert _grade_one("取り付け", "取付け")
+		assert _grade_one("取付", "取り付け")
+
+	@needs_sudachi
+	def test_homophones_are_still_wrong(self):
+		assert not _grade_one("機関", "期間")
+		assert not _grade_one("機関", "器官")
+
+	def test_without_sudachi_okurigana_variants_do_not_match_but_kana_does(self, monkeypatch):
+		_without_sudachi(monkeypatch)
+		monkeypatch.setattr(fill_blank, "_log_sudachi_unavailable", lambda error: None)
+		assert not _grade_one("取り付け", "取付")
+		assert _grade_one("取り付け", "取り付け")
+		assert _grade_one("ガス", "がす")
+		assert _grade_one("コンデンサー", "こんでんさー")
+		assert not _grade_one("機関", "期間")
+
+	def test_accepted_output_stays_the_typed_lines(self):
+		graded = grade_fill_blank([_blank("1", "ガス\n取り付け")], {"1": "がす"})
+		assert graded["results"][0]["accepted"] == ["ガス", "取り付け"]
+		assert graded["results"][0]["is_correct"] is True
+
+	def test_empty_answer_never_matches_on_either_key(self):
+		assert not _grade_one("ガス", "")
+		assert not _grade_one("ガス", "。")
 
 
 class TestNegativeMarking:

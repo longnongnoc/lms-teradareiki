@@ -141,16 +141,13 @@ def clean_answer_text(value) -> str:
 	return text.strip()
 
 
-def normalize_answer(text) -> str:
-	"""What two answers are compared on. Width, case, invisible characters, spacing, punctuation,
-	kana script and okurigana do not matter: 冷凍 サイクル, 冷凍サイクル and 冷凍。 agree with their
-	plain forms, ねじ with ネジ, 取り付け with 取付, コンピュータ with コンピューター, R-410A with
-	R410A. Spaces between Latin words stay, so "heat pump" is not "heatpump"."""
+def _normalize(text, morphemes: bool) -> str:
 	if text is None:
 		return ""
 	text = unicodedata.normalize("NFKC", str(text))
 	text = _ZERO_WIDTH.sub("", text).casefold()
-	text = _normalize_morphemes(text)
+	if morphemes:
+		text = _normalize_morphemes(text)
 	text = _KATAKANA.sub(lambda match: chr(ord(match.group()) - 0x60), text)
 	# Before the punctuation goes, so a mark such as ・ still ends the word it follows.
 	text = _FINAL_LONG_VOWEL.sub("", text)
@@ -159,13 +156,50 @@ def normalize_answer(text) -> str:
 	return _SPACE_NEXT_TO_CJK.sub("", text)
 
 
+def normalize_answer(text) -> str:
+	"""The plain key two answers are compared on. Width, case, invisible characters, spacing,
+	punctuation and kana script do not matter: 冷凍 サイクル, 冷凍サイクル and 冷凍。 agree, ねじ
+	with ネジ, コンピュータ with コンピューター, R-410A with R410A. Spaces between Latin words
+	stay, so "heat pump" is not "heatpump"."""
+	return _normalize(text, morphemes=False)
+
+
+def normalize_answer_morphemes(text) -> str:
+	"""The second key: the plain key with the dictionary's normalized form of each Japanese word
+	put in first, so 取付, 取付け and 取り付け agree. It can only add matches, never remove them,
+	because an answer is also correct on its plain key (the dictionary reads some hiragana
+	spellings as other words: がす as 貸す). Without SudachiPy it equals the plain key."""
+	return _normalize(text, morphemes=True)
+
+
+def _accepted_keys(answers_text) -> list[tuple[str, str]]:
+	"""(plain key, morpheme key) of each accepted line that compares as something."""
+	keys = []
+	for line in str(answers_text or "").splitlines():
+		plain = normalize_answer(line)
+		if plain:
+			keys.append((plain, normalize_answer_morphemes(line)))
+	return keys
+
+
 def parse_accepted_answers(answers_text) -> list[str]:
 	accepted = []
-	for line in str(answers_text or "").splitlines():
-		normalized = normalize_answer(line)
-		if normalized and normalized not in accepted:
-			accepted.append(normalized)
+	for plain, _morphemes in _accepted_keys(answers_text):
+		if plain not in accepted:
+			accepted.append(plain)
 	return accepted
+
+
+def matches_accepted_answer(answer, answers_text) -> bool:
+	"""True if the answer equals an accepted line on the plain key or on the morpheme key."""
+	plain = normalize_answer(answer)
+	if not plain:
+		return False
+	keys = _accepted_keys(answers_text)
+	if any(plain == accepted_plain for accepted_plain, _ in keys):
+		return True
+	morphemes = normalize_answer_morphemes(answer)
+	return bool(morphemes) and any(morphemes == accepted for _, accepted in keys)
 
 
 def empty_accepted_answers(answers_text) -> list[str]:
@@ -202,8 +236,7 @@ def grade_fill_blank(blanks: list[dict], submitted: dict) -> dict:
 		answer = submitted.get(blank_id)
 		answer = "" if answer is None else str(answer)
 
-		normalized = normalize_answer(answer)
-		is_correct = bool(normalized) and normalized in parse_accepted_answers(answers_text)
+		is_correct = matches_accepted_answer(answer, answers_text)
 		marks = marks_out_of if is_correct else 0
 
 		earned += marks
