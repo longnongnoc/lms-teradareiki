@@ -261,7 +261,9 @@ class TestUserInput:
 	def test_japanese_answers(self):
 		doc = _doc(self._q(["オゾン層を破壊しない"]))
 		assert validate(doc) == []
-		assert normalize(doc)["tests"][0]["sections"][0]["questions"][0]["answers"] == ["オゾン層を破壊しない"]
+		assert normalize(doc)["tests"][0]["sections"][0]["questions"][0]["answers"] == [
+			"オゾン層を破壊しない"
+		]
 
 
 class TestFillBlank:

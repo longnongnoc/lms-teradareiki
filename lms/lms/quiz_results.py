@@ -143,7 +143,9 @@ def _quiz_settings(quiz: str):
 	)
 
 
-def _build_summary(quiz: str, member: str, *, with_attempts: bool = False, show_attempts: bool = True) -> dict:
+def _build_summary(
+	quiz: str, member: str, *, with_attempts: bool = False, show_attempts: bool = True
+) -> dict:
 	settings = _quiz_settings(quiz)
 	attempts = frappe.get_all(
 		"LMS Quiz Submission",
@@ -290,7 +292,11 @@ def get_quiz_results(
 	if status:
 		rows = [row for row in rows if row["status"] == status]
 
-	return {"rows": _with_people(rows[start : start + page_length]), "total": len(rows), "truncated": truncated}
+	return {
+		"rows": _with_people(rows[start : start + page_length]),
+		"total": len(rows),
+		"truncated": truncated,
+	}
 
 
 def _summarise_pairs(pairs: dict) -> list:

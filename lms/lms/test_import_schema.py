@@ -34,7 +34,7 @@ def _is_int(value) -> bool:
 
 
 def _is_number(value) -> bool:
-	return isinstance(value, (int, float)) and not isinstance(value, bool)
+	return isinstance(value, int | float) and not isinstance(value, bool)
 
 
 def _has_at_most_two_decimals(value) -> bool:
@@ -50,7 +50,7 @@ def validate(doc) -> list[str]:
 	"""Every problem found in `doc`, never stopping at the first. Empty means valid."""
 	errors = []
 	if not isinstance(doc, dict):
-		return ["document: must be a JSON object with a \"tests\" list"]
+		return ['document: must be a JSON object with a "tests" list']
 
 	tests = doc.get("tests")
 	if not isinstance(tests, list) or not tests:
@@ -278,7 +278,9 @@ def _validate_fill_blank(question, path, errors):
 			continue
 
 		raw_id = blank.get("id")
-		blank_id = str(raw_id).strip() if isinstance(raw_id, (str, int)) and not isinstance(raw_id, bool) else ""
+		blank_id = (
+			str(raw_id).strip() if isinstance(raw_id, str | int) and not isinstance(raw_id, bool) else ""
+		)
 		if not blank_id:
 			errors.append(f"{blank_path}.id: required")
 		elif BLANK_TOKEN.fullmatch("{{" + blank_id + "}}") is None:

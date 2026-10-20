@@ -56,7 +56,7 @@ ALLOWED_DATAURL_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".
 
 MAX_QUESTION_GROUPS = 40
 
-VIOLATION_EVENT_TYPES ={"tab_switch", "no_face", "multiple_faces", "focus_loss", "camera_disconnect"}
+VIOLATION_EVENT_TYPES = {"tab_switch", "no_face", "multiple_faces", "focus_loss", "camera_disconnect"}
 SUBMISSION_REASONS = {"manual", "timer_expired", "max_violations", "browser_closed", "left_page"}
 # One attempt cannot plausibly produce more proctoring events than this; the rest is a flood.
 MAX_VIOLATION_EVENTS = 500
@@ -858,7 +858,9 @@ def get_option_keys_and_flags(question_details):
 	keys = option_keys(
 		[
 			(question_details[text_field], question_details[image_field])
-			for text_field, image_field in zip(QUESTION_OPTION_FIELDS, QUESTION_OPTION_IMAGE_FIELDS, strict=True)
+			for text_field, image_field in zip(
+				QUESTION_OPTION_FIELDS, QUESTION_OPTION_IMAGE_FIELDS, strict=True
+			)
 		]
 	)
 	return keys, [question_details[field] for field in QUESTION_CORRECTNESS_FIELDS]

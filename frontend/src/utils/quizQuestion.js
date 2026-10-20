@@ -246,7 +246,7 @@ export const countCorrectOptions = (question) =>
 	Array.from({ length: MAX_OPTIONS }, (_, i) =>
 		Boolean(
 			question?.[`is_correct_${i + 1}`] &&
-			isOptionSlotPresent(question, i + 1)
+				isOptionSlotPresent(question, i + 1)
 		)
 	).filter(Boolean).length
 

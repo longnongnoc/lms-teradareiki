@@ -84,7 +84,7 @@ def grade_fill_blank(blanks: list[dict], submitted: dict) -> dict:
 
 
 def parse_submitted_answer(raw) -> dict:
-	if isinstance(raw, (str, bytes, bytearray)):
+	if isinstance(raw, str | bytes | bytearray):
 		try:
 			raw = json.loads(raw)
 		except (TypeError, ValueError):
