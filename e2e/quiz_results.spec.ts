@@ -424,6 +424,10 @@ test.describe("Quiz results and practical score", () => {
 		);
 		await expect(page.getByTestId("practical-input")).toHaveValue("");
 		await expect(page.getByTestId("practical-clear")).toHaveCount(0);
+		// The confirm dialog closes only after the summary reloads; Escape must not hit it.
+		await expect(
+			page.getByRole("dialog").filter({ hasText: "Clear the practical score?" })
+		).toBeHidden();
 
 		await closeResult(page);
 		const row = resultRow(page, practicalTitle);

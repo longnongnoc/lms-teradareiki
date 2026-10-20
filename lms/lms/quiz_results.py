@@ -115,7 +115,7 @@ def set_practical_score(quiz: str, member: str, score: float, note: str | None =
 		"note": doc.note,
 		"scored_by": doc.scored_by,
 		"scored_on": doc.scored_on,
-		"summary": _build_summary(quiz, member),
+		"summary": _build_summary(quiz, member, with_attempts=True),
 	}
 
 
@@ -131,7 +131,7 @@ def delete_practical_score(quiz: str, member: str):
 	existing = frappe.db.get_value(PRACTICAL_SCORE, {"quiz": quiz, "member": member})
 	if existing:
 		frappe.delete_doc(PRACTICAL_SCORE, existing)
-	return {"summary": _build_summary(quiz, member)}
+	return {"summary": _build_summary(quiz, member, with_attempts=True)}
 
 
 def _quiz_settings(quiz: str):
