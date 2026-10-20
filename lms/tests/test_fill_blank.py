@@ -34,9 +34,9 @@ class TestNormalizeAnswer:
 		assert normalize_answer("ＡＢＣ１２３") == "abc123"
 		assert normalize_answer("ＡＢＣ１２３") == normalize_answer("abc123")
 
-	def test_ideographic_space_collapses(self):
-		assert normalize_answer("圧縮　機") == "圧縮 機"
+	def test_ideographic_space_is_trimmed(self):
 		assert normalize_answer("　圧縮機　") == "圧縮機"
+		assert normalize_answer("　abc　") == "abc"
 
 	def test_trim_and_collapse_whitespace(self):
 		assert normalize_answer("  a \t b\n\n c  ") == "a b c"
@@ -46,6 +46,48 @@ class TestNormalizeAnswer:
 
 	def test_casefold_handles_sharp_s(self):
 		assert normalize_answer("Straße") == normalize_answer("STRASSE")
+
+	def test_zero_width_characters_are_removed(self):
+		for char in ("\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"):
+			assert normalize_answer(f"圧{char}縮機") == "圧縮機"
+			assert normalize_answer(f"hea{char}t") == "heat"
+		assert normalize_answer("\ufeff圧縮機\u200b") == "圧縮機"
+
+	def test_zero_width_only_is_empty(self):
+		assert normalize_answer("\u200b\u200c\u200d\ufeff\u2060") == ""
+
+	def test_space_between_japanese_words_is_ignored(self):
+		assert normalize_answer("冷凍 サイクル") == "冷凍サイクル"
+		assert normalize_answer("冷凍  サイクル") == "冷凍サイクル"
+
+	def test_ideographic_space_between_japanese_words_is_ignored(self):
+		assert normalize_answer("冷凍　サイクル") == "冷凍サイクル"
+
+	def test_space_next_to_each_japanese_script_is_ignored(self):
+		assert normalize_answer("ひらがな 漢字") == "ひらがな漢字"
+		assert normalize_answer("カタカナ ひらがな") == "カタカナひらがな"
+		assert normalize_answer("コンプレッサー 冷凍") == "コンプレッサー冷凍"
+		assert normalize_answer("ｺﾝﾌﾟﾚｯｻｰ 冷凍") == "コンプレッサー冷凍"
+
+	def test_space_next_to_japanese_punctuation_is_ignored(self):
+		assert normalize_answer("冷凍 、 サイクル") == "冷凍、サイクル"
+		assert normalize_answer("「 冷凍 」") == "「冷凍」"
+
+	def test_space_between_japanese_and_latin_is_ignored(self):
+		assert normalize_answer("R410A 冷媒") == "r410a冷媒"
+		assert normalize_answer("冷媒 R410A") == "冷媒r410a"
+		assert normalize_answer("冷媒 R 410A") == "冷媒r 410a"
+
+	def test_space_between_latin_words_is_kept(self):
+		assert normalize_answer("heat pump") == "heat pump"
+		assert normalize_answer("heat   pump") == "heat pump"
+		assert normalize_answer("heat pump") != normalize_answer("heatpump")
+
+	def test_space_between_fullwidth_latin_words_is_kept(self):
+		assert normalize_answer("ＨＥＡＴ　ＰＵＭＰ") == "heat pump"
+
+	def test_zero_width_then_space_next_to_japanese(self):
+		assert normalize_answer("冷凍\u200b サイクル") == "冷凍サイクル"
 
 
 class TestParseAcceptedAnswers:
@@ -96,6 +138,12 @@ class TestGradeFillBlank:
 		assert graded["results"][0]["answer"] == ""
 		assert graded["is_correct"] is False
 		assert graded["marks"] == 0
+
+	def test_japanese_spacing_variants_match(self):
+		assert _grade_one("冷凍サイクル", "冷凍 サイクル")
+		assert _grade_one("冷凍サイクル", "冷凍　サイクル")
+		assert _grade_one("冷凍 サイクル", "冷凍サイクル")
+		assert not _grade_one("heatpump", "heat pump")
 
 	def test_japanese_text(self):
 		assert _grade_one("圧縮機", "圧縮機")

@@ -12,13 +12,26 @@ import unicodedata
 
 BLANK_TOKEN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
 _WHITESPACE = re.compile(r"\s+")
+_ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
+
+# Hiragana, Katakana (incl. the prolonged sound mark and half-width forms), CJK symbols and
+# punctuation, CJK ideographs and the full-width forms block.
+_CJK_RANGES = (
+	r"\u3000-\u303f\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef"
+	r"\U00020000-\U0002ffff"
+)
+_SPACE_NEXT_TO_CJK = re.compile(rf"\s+(?=[{_CJK_RANGES}])|(?<=[{_CJK_RANGES}])\s+")
 
 
 def normalize_answer(text) -> str:
+	"""Case, width, invisible characters and spacing do not matter. Spaces next to Japanese
+	text are dropped ("冷凍 サイクル" equals "冷凍サイクル"); spaces between Latin words stay."""
 	if text is None:
 		return ""
-	text = unicodedata.normalize("NFKC", str(text)).strip()
-	return _WHITESPACE.sub(" ", text).casefold()
+	text = unicodedata.normalize("NFKC", str(text))
+	text = _ZERO_WIDTH.sub("", text)
+	text = _WHITESPACE.sub(" ", text).strip()
+	return _SPACE_NEXT_TO_CJK.sub("", text).casefold()
 
 
 def parse_accepted_answers(answers_text) -> list[str]:
