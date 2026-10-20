@@ -9,7 +9,8 @@ jobs:
     name: Pre-build assets
     uses: frappe/pilot/.github/workflows/app-assets.yml@develop
     with:
-      # main supports Frappe v15 and v16; Pilot benches run v16 or later.
-      frappe-branch: ${{ github.ref_name == 'main' && 'version-16' || 'develop' }}
+      # The frontend imports DataImportWizard and useDataImport from @framework/ui, which exist
+      # only on Frappe develop; the build fails on version-16.
+      frappe-branch: develop
     permissions:
       contents: write

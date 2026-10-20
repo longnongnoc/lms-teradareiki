@@ -7,6 +7,8 @@ on:
 jobs:
   release:
     name: Release
+    # Upstream release automation; it fetches tags from frappe/lms and cannot run in this fork.
+    if: github.repository == 'frappe/lms'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Entire Repository
