@@ -33,7 +33,11 @@ ignored after creation, so later deploys go through SSM (CI) and not re-creation
 
 ## LMS image
 
-The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/longnongnoc/terada-lms`. The GHCR package must be public so the instance can pull it anonymously.
+The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/18phongnguyen/terada-lms`, from the fork https://github.com/18PhongNguyen/terada-lms. The GHCR package must be public so the instance can pull it anonymously.
+
+Build with `frappe_branch` and `payments_ref` set to `develop` (the workflow defaults). The fork's frontend imports `useDataImport` and `DataImportWizard` from `@framework/ui`, which exist only on frappe `develop`; on `version-16` `vite build` fails with `"useDataImport" is not exported by node_modules/@framework/ui/src/components/DataImport/index.ts`.
+
+The fork repository is private. `git clone` on the instance (`repo_url`) and the image build both need read access to it (a deploy key or token), or make the repository public.
 
 Run the workflow before the first `terraform apply`, and keep `lms_image` in sync with the tag it pushed.
 

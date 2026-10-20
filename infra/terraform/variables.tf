@@ -35,17 +35,17 @@ variable "alert_email" {
 
 variable "repo_url" {
   type    = string
-  default = "https://github.com/longnongnoc/lms-teradareiki.git"
+  default = "https://github.com/18PhongNguyen/terada-lms.git"
 }
 
 variable "deploy_ref" {
   type    = string
-  default = "develop"
+  default = "main"
 }
 
 variable "lms_image" {
   type    = string
-  default = "ghcr.io/longnongnoc/terada-lms:v2.65.0"
+  default = "ghcr.io/18phongnguyen/terada-lms:main"
 }
 
 variable "backup_retention_days" {

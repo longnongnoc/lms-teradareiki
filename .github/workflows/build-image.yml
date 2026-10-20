@@ -6,11 +6,11 @@ on:
       lms_url:
         description: LMS git repository URL
         type: string
-        default: https://github.com/frappe/lms
+        default: https://github.com/18PhongNguyen/terada-lms
       lms_ref:
         description: LMS branch or tag
         type: string
-        default: v2.65.0
+        default: main
       payments_ref:
         description: Payments branch or tag
         type: string
@@ -35,10 +35,10 @@ jobs:
     steps:
       - name: Validate inputs and compute image name
         env:
-          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
-          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
-          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
-          FRAPPE_BRANCH: ${{ inputs.frappe_branch || 'version-16' }}
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/18PhongNguyen/terada-lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'main' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'develop' }}
+          FRAPPE_BRANCH: ${{ inputs.frappe_branch || 'develop' }}
           IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
           OWNER: ${{ github.repository_owner }}
         run: |
@@ -77,9 +77,9 @@ jobs:
 
       - name: Write apps.json
         env:
-          LMS_URL: ${{ inputs.lms_url || 'https://github.com/frappe/lms' }}
-          LMS_REF: ${{ inputs.lms_ref || 'v2.65.0' }}
-          PAYMENTS_REF: ${{ inputs.payments_ref || 'version-16' }}
+          LMS_URL: ${{ inputs.lms_url || 'https://github.com/18PhongNguyen/terada-lms' }}
+          LMS_REF: ${{ inputs.lms_ref || 'main' }}
+          PAYMENTS_REF: ${{ inputs.payments_ref || 'develop' }}
         run: |
           jq -n \
             --arg payments_ref "$PAYMENTS_REF" \
@@ -108,7 +108,7 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
           build-args: |
-            FRAPPE_BRANCH=${{ inputs.frappe_branch || 'version-16' }}
+            FRAPPE_BRANCH=${{ inputs.frappe_branch || 'develop' }}
             CACHE_BUST=${{ github.run_id }}
           secret-files: |
             apps_json=apps.json
