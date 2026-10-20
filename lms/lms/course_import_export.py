@@ -767,7 +767,10 @@ def add_questions_to_quiz(quiz_doc, questions):
 		question_detail = question["question_detail"]
 		question_name = frappe.db.get_value("LMS Question", {"question": question_detail}, "name")
 		if question_name:
-			quiz_doc.append("questions", {"question": question_name})
+			# The child row carries the quiz's own marks for the question and defaults to 1,
+			# so leaving it out scored every imported question as one mark.
+			marks = question.get("marks") or frappe.db.get_value("LMS Question", question_name, "marks")
+			quiz_doc.append("questions", {"question": question_name, "marks": marks})
 
 
 def create_supporting_docs(zip_file):
