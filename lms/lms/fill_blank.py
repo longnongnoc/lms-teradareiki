@@ -7,8 +7,10 @@ Pure python on purpose: no frappe import, so the rules can be unit tested withou
 """
 
 import json
+import logging
 import re
 import unicodedata
+from functools import lru_cache
 from html.parser import HTMLParser
 
 BLANK_ID = re.compile(r"[0-9]+")
@@ -23,6 +25,80 @@ _CJK_RANGES = (
 	r"\U00020000-\U0002ffff"
 )
 _SPACE_NEXT_TO_CJK = re.compile(rf"\s+(?=[{_CJK_RANGES}])|(?<=[{_CJK_RANGES}])\s+")
+
+# What makes a stretch of text Japanese as far as morpheme normalization goes.
+_JAPANESE_LETTERS = re.compile(
+	r"[\u3040-\u30ff\u31f0-\u31ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U0002ffff]"
+)
+_KATAKANA = re.compile("[ァ-ヶ]")
+# A prolonged sound mark that ends a word: コンピューター == コンピュータ. One inside a word stays.
+_FINAL_LONG_VOWEL = re.compile("(?<=[ぁ-ゖ])ー+(?![ぁ-ゖー])")
+# Japanese punctuation, ASCII punctuation (after NFKC), dash variants and curly quotes. A "." or ","
+# between two digits is a decimal or thousands mark and stays: 1.5 is not 15.
+_PUNCTUATION = re.compile(
+	"[。、・「」『』【】〈〉《》〔〕（）〜]"
+	r"|[-!?()\[\]/:;'\"~\u2010-\u2015\u2212\ufe63\u2018\u2019\u201c\u201d]"
+	r"|(?<![0-9])[.,]|[.,](?![0-9])"
+)
+
+_sudachi = None
+_sudachi_loaded = False
+
+
+def _log_sudachi_unavailable(error) -> None:
+	message = f"SudachiPy is not available, Fill Blank answers skip okurigana normalization: {error!r}"
+	try:
+		import frappe
+
+		frappe.logger("lms").warning(message)
+	except Exception:
+		logging.getLogger(__name__).warning(message)
+
+
+def _get_sudachi():
+	"""The SudachiPy tokenizer, loaded on first use and kept. None when it cannot be loaded,
+	which is logged once and never stops grading."""
+	global _sudachi, _sudachi_loaded
+	if not _sudachi_loaded:
+		_sudachi_loaded = True
+		try:
+			from sudachipy import dictionary, tokenizer
+
+			mode = tokenizer.Tokenizer.SplitMode.C
+			sudachi_dictionary = dictionary.Dictionary()
+			if hasattr(sudachi_dictionary, "tokenizer"):
+				_sudachi = (sudachi_dictionary.tokenizer(mode), mode)
+			else:
+				_sudachi = (sudachi_dictionary.create(), mode)
+		except Exception as error:
+			_sudachi = None
+			_log_sudachi_unavailable(error)
+	return _sudachi
+
+
+@lru_cache(maxsize=4096)
+def _sudachi_normalized_form(text: str) -> str:
+	loaded = _get_sudachi()
+	if loaded is None:
+		return text
+	tokenizer, mode = loaded
+	try:
+		return "".join(morpheme.normalized_form() for morpheme in tokenizer.tokenize(text, mode))
+	except Exception:
+		return text
+
+
+def _normalize_morphemes(text: str) -> str:
+	"""Okurigana and kanji variants meet on the dictionary's normalized form (取付, 取付け and
+	取り付け are one word). Never the reading: 機関, 期間 and 器官 must stay apart. Only stretches
+	with Japanese in them are touched, so Latin words and codes such as R410A pass as typed, and
+	the whitespace between stretches is kept for the spacing rules."""
+	if not _JAPANESE_LETTERS.search(text):
+		return text
+	return "".join(
+		_sudachi_normalized_form(part) if _JAPANESE_LETTERS.search(part) else part
+		for part in re.split(r"(\s+)", text)
+	)
 
 
 class _TagStripper(HTMLParser):
@@ -66,14 +142,21 @@ def clean_answer_text(value) -> str:
 
 
 def normalize_answer(text) -> str:
-	"""Case, width, invisible characters and spacing do not matter. Spaces next to Japanese
-	text are dropped ("冷凍 サイクル" equals "冷凍サイクル"); spaces between Latin words stay."""
+	"""What two answers are compared on. Width, case, invisible characters, spacing, punctuation,
+	kana script and okurigana do not matter: 冷凍 サイクル, 冷凍サイクル and 冷凍。 agree with their
+	plain forms, ねじ with ネジ, 取り付け with 取付, コンピュータ with コンピューター, R-410A with
+	R410A. Spaces between Latin words stay, so "heat pump" is not "heatpump"."""
 	if text is None:
 		return ""
 	text = unicodedata.normalize("NFKC", str(text))
-	text = _ZERO_WIDTH.sub("", text)
+	text = _ZERO_WIDTH.sub("", text).casefold()
+	text = _normalize_morphemes(text)
+	text = _KATAKANA.sub(lambda match: chr(ord(match.group()) - 0x60), text)
+	# Before the punctuation goes, so a mark such as ・ still ends the word it follows.
+	text = _FINAL_LONG_VOWEL.sub("", text)
+	text = _PUNCTUATION.sub("", text)
 	text = _WHITESPACE.sub(" ", text).strip()
-	return _SPACE_NEXT_TO_CJK.sub("", text).casefold()
+	return _SPACE_NEXT_TO_CJK.sub("", text)
 
 
 def parse_accepted_answers(answers_text) -> list[str]:
@@ -83,6 +166,13 @@ def parse_accepted_answers(answers_text) -> list[str]:
 		if normalized and normalized not in accepted:
 			accepted.append(normalized)
 	return accepted
+
+
+def empty_accepted_answers(answers_text) -> list[str]:
+	"""Accepted-answer lines that are text but compare as nothing, such as "。" or "-": every
+	submitted answer that reduces to nothing is counted as unanswered, so the line could never match."""
+	lines = (line.strip() for line in str(answers_text or "").splitlines())
+	return [line for line in lines if line and not normalize_answer(line)]
 
 
 def extract_blank_ids(question_html) -> list[str]:

@@ -4,7 +4,10 @@
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
+
+import pytest
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "lms" / "fill_blank.py"
 _spec = importlib.util.spec_from_file_location("lms_fill_blank_under_test", _MODULE_PATH)
@@ -13,11 +16,21 @@ _spec.loader.exec_module(fill_blank)
 
 normalize_answer = fill_blank.normalize_answer
 parse_accepted_answers = fill_blank.parse_accepted_answers
+empty_accepted_answers = fill_blank.empty_accepted_answers
 extract_blank_ids = fill_blank.extract_blank_ids
 grade_fill_blank = fill_blank.grade_fill_blank
 apply_negative_marking = fill_blank.apply_negative_marking
 parse_submitted_answer = fill_blank.parse_submitted_answer
 clean_answer_text = fill_blank.clean_answer_text
+
+
+needs_sudachi = pytest.mark.skipif(
+	fill_blank._get_sudachi() is None, reason="SudachiPy and its dictionary are not installed"
+)
+
+
+def _same(first, second):
+	return normalize_answer(first) == normalize_answer(second)
 
 
 def _blank(blank_id, answers, marks=1):
@@ -59,26 +72,27 @@ class TestNormalizeAnswer:
 		assert normalize_answer("\u200b\u200c\u200d\ufeff\u2060") == ""
 
 	def test_space_between_japanese_words_is_ignored(self):
-		assert normalize_answer("冷凍 サイクル") == "冷凍サイクル"
-		assert normalize_answer("冷凍  サイクル") == "冷凍サイクル"
+		assert _same("冷凍 サイクル", "冷凍サイクル")
+		assert _same("冷凍  サイクル", "冷凍サイクル")
 
 	def test_ideographic_space_between_japanese_words_is_ignored(self):
-		assert normalize_answer("冷凍　サイクル") == "冷凍サイクル"
+		assert _same("冷凍　サイクル", "冷凍サイクル")
 
 	def test_space_next_to_each_japanese_script_is_ignored(self):
-		assert normalize_answer("ひらがな 漢字") == "ひらがな漢字"
-		assert normalize_answer("カタカナ ひらがな") == "カタカナひらがな"
-		assert normalize_answer("コンプレッサー 冷凍") == "コンプレッサー冷凍"
-		assert normalize_answer("ｺﾝﾌﾟﾚｯｻｰ 冷凍") == "コンプレッサー冷凍"
+		assert _same("ひらがな 漢字", "ひらがな漢字")
+		assert _same("カタカナ ひらがな", "カタカナひらがな")
+		assert _same("コンプレッサー 冷凍", "コンプレッサー冷凍")
+		assert _same("ｺﾝﾌﾟﾚｯｻｰ 冷凍", "コンプレッサー冷凍")
 
 	def test_space_next_to_japanese_punctuation_is_ignored(self):
-		assert normalize_answer("冷凍 、 サイクル") == "冷凍、サイクル"
-		assert normalize_answer("「 冷凍 」") == "「冷凍」"
+		assert _same("冷凍 、 サイクル", "冷凍サイクル")
+		assert _same("「 冷凍 」", "冷凍")
 
 	def test_space_between_japanese_and_latin_is_ignored(self):
-		assert normalize_answer("R410A 冷媒") == "r410a冷媒"
-		assert normalize_answer("冷媒 R410A") == "冷媒r410a"
-		assert normalize_answer("冷媒 R 410A") == "冷媒r 410a"
+		assert _same("R410A 冷媒", "R410A冷媒")
+		assert _same("冷媒 R410A", "冷媒R410A")
+		assert normalize_answer("冷媒 R 410A") == normalize_answer("冷媒R 410A")
+		assert not _same("冷媒 R 410A", "冷媒R410A")
 
 	def test_space_between_latin_words_is_kept(self):
 		assert normalize_answer("heat pump") == "heat pump"
@@ -86,10 +100,114 @@ class TestNormalizeAnswer:
 		assert normalize_answer("heat pump") != normalize_answer("heatpump")
 
 	def test_space_between_fullwidth_latin_words_is_kept(self):
-		assert normalize_answer("ＨＥＡＴ　ＰＵＭＰ") == "heat pump"
+		assert normalize_answer("ＨＥＡＴ\u3000ＰＵＭＰ") == "heat pump"
 
 	def test_zero_width_then_space_next_to_japanese(self):
-		assert normalize_answer("冷凍\u200b サイクル") == "冷凍サイクル"
+		assert _same("冷凍\u200b サイクル", "冷凍サイクル")
+
+	def test_katakana_equals_hiragana(self):
+		assert _same("ねじ", "ネジ")
+		assert _same("ふぁん", "ファン")
+		assert _same("てんかい", "テンカイ")
+
+	def test_prolonged_sound_mark_is_kept_inside_a_word(self):
+		assert not _same("ヒートポンプ", "ヒトポンプ")
+		assert normalize_answer("ヒートポンプ") == "ひーとぽんぷ"
+
+	def test_word_final_prolonged_sound_mark_is_dropped(self):
+		assert normalize_answer("コンピューター") == normalize_answer("コンピュータ")
+		assert normalize_answer("コンプレッサー") == normalize_answer("コンプレッサ")
+		assert normalize_answer("ヒーター 冷凍") == normalize_answer("ヒータ 冷凍")
+		assert normalize_answer("ヒーター・ポンプ") == normalize_answer("ヒータ・ポンプ")
+
+	def test_prolonged_sound_mark_after_kanji_is_kept(self):
+		assert normalize_answer("電ー") != normalize_answer("電")
+
+	def test_punctuation_is_ignored(self):
+		assert _same("R-410A", "R410A")
+		assert _same("R-410A", "Ｒー４１０Ａ".replace("ー", "－"))
+		assert _same("ヒート・ポンプ", "ヒートポンプ")
+		assert _same("冷凍。", "冷凍")
+		assert _same("冷凍、サイクル", "冷凍サイクル")
+		assert _same("「冷凍」", "冷凍")
+		assert _same("（冷凍）", "冷凍")
+		assert _same("【冷凍】", "冷凍")
+		assert _same("heat-pump!", "heatpump")
+		assert _same("what?", "what")
+		assert _same("a/b:c;d'e", "abcde")
+		assert _same('"quoted"', "quoted")
+		assert _same("a~b", "ab")
+		assert _same("(a)[b]", "ab")
+
+	def test_dash_variants_are_ignored(self):
+		for dash in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2015", "\u2212", "\ufe63"):
+			assert normalize_answer(f"R{dash}410A") == "r410a"
+
+	def test_decimal_and_thousands_marks_between_digits_are_kept(self):
+		assert normalize_answer("1.5") == "1.5"
+		assert normalize_answer("1,000") == "1,000"
+		assert normalize_answer("１．５") == "1.5"
+		assert not _same("1.5", "15")
+		assert not _same("1,000", "1000")
+
+	def test_dot_not_between_digits_is_dropped(self):
+		assert normalize_answer("3.") == "3"
+		assert normalize_answer("x.5") == "x5"
+		assert normalize_answer("1.5.") == "1.5"
+
+	def test_degree_and_percent_are_kept(self):
+		assert normalize_answer("50℃") == "50°c"
+		assert normalize_answer("50%") == "50%"
+		assert not _same("50%", "50")
+
+	def test_punctuation_only_is_empty(self):
+		assert normalize_answer("。、・「」") == ""
+		assert normalize_answer(" - . , ! ") == ""
+
+	@needs_sudachi
+	def test_okurigana_variants_are_one_word(self):
+		assert _same("取付", "取り付け")
+		assert _same("取付け", "取り付け")
+		assert _same("取付", "取付け")
+
+	@needs_sudachi
+	def test_homophones_stay_apart(self):
+		assert not _same("機関", "期間")
+		assert not _same("機関", "器官")
+		assert not _same("期間", "器官")
+
+	@needs_sudachi
+	def test_latin_and_digits_are_not_touched_by_morphology(self):
+		assert normalize_answer("R410A") == "r410a"
+		assert normalize_answer("heat pump") == "heat pump"
+
+	def test_morphology_failure_is_skipped_and_logged_once(self, monkeypatch):
+		monkeypatch.setitem(sys.modules, "sudachipy", None)
+		monkeypatch.setattr(fill_blank, "_sudachi", None)
+		monkeypatch.setattr(fill_blank, "_sudachi_loaded", False)
+		logged = []
+		monkeypatch.setattr(fill_blank, "_log_sudachi_unavailable", logged.append)
+		fill_blank._sudachi_normalized_form.cache_clear()
+		try:
+			assert normalize_answer("取付け") == "取付け"
+			assert normalize_answer("ネジ") == "ねじ"
+			assert normalize_answer("冷凍 サイクル") == "冷凍さいくる"
+			assert len(logged) == 1
+		finally:
+			fill_blank._sudachi_normalized_form.cache_clear()
+
+	def test_morphology_error_on_one_text_falls_back_to_that_text(self, monkeypatch):
+		class Broken:
+			def tokenize(self, text, mode):
+				raise RuntimeError("input too long")
+
+		monkeypatch.setattr(fill_blank, "_sudachi", (Broken(), None))
+		monkeypatch.setattr(fill_blank, "_sudachi_loaded", True)
+		fill_blank._sudachi_normalized_form.cache_clear()
+		try:
+			assert normalize_answer("取付け") == "取付け"
+		finally:
+			fill_blank._sudachi_normalized_form.cache_clear()
 
 
 class TestParseAcceptedAnswers:
@@ -106,6 +224,24 @@ class TestParseAcceptedAnswers:
 	def test_empty_input(self):
 		assert parse_accepted_answers("") == []
 		assert parse_accepted_answers(None) == []
+
+	def test_dedupes_after_normalization(self):
+		assert parse_accepted_answers("R-410A\nR410A\nr 410a\n冷凍。\n冷凍") == ["r410a", "r 410a", "冷凍"]
+
+	def test_punctuation_only_lines_are_dropped(self):
+		assert parse_accepted_answers("。\n-\n圧縮機") == ["圧縮機"]
+
+
+class TestEmptyAcceptedAnswers:
+	def test_lists_lines_that_compare_as_nothing(self):
+		assert empty_accepted_answers("圧縮機\n。\n - . \n・「」") == ["。", "- .", "・「」"]
+
+	def test_ordinary_answers_pass(self):
+		assert empty_accepted_answers("圧縮機\n50°C\nR-410A\n1.5") == []
+
+	def test_blank_lines_are_not_reported(self):
+		assert empty_accepted_answers("\n  \n") == []
+		assert empty_accepted_answers(None) == []
 
 
 class TestExtractBlankIds:
