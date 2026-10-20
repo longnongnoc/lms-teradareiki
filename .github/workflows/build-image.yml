@@ -1,28 +1,39 @@
 name: Build LMS image
 
 on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "e2e/**"
+      - "infra/**"
+      - "deploy/**"
+      - "**.md"
   workflow_dispatch:
     inputs:
       lms_url:
-        description: LMS git repository URL
+        description: LMS git repository URL (empty = this repository)
         type: string
-        default: https://github.com/18PhongNguyen/terada-lms
+        default: ""
       lms_ref:
-        description: LMS branch or tag
+        description: LMS branch or tag (empty = the branch this run was started on)
         type: string
-        default: main
+        default: ""
       payments_ref:
         description: Payments branch or tag
         type: string
-        default: version-16
+        default: develop
       frappe_branch:
-        description: Frappe branch
+        description: Frappe branch (version-16 cannot build the current frontend, use develop)
         type: string
-        default: version-16
+        default: develop
       image_tag:
         description: Image tag (empty uses lms_ref)
         type: string
         default: ""
+
+concurrency:
+  group: build-image-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -35,8 +46,8 @@ jobs:
     steps:
       - name: Validate inputs and compute image name
         env:
-          LMS_URL: ${{ inputs.lms_url || 'https://github.com/18PhongNguyen/terada-lms' }}
-          LMS_REF: ${{ inputs.lms_ref || 'main' }}
+          LMS_URL: ${{ inputs.lms_url || format('https://github.com/{0}', github.repository) }}
+          LMS_REF: ${{ inputs.lms_ref || github.ref_name }}
           PAYMENTS_REF: ${{ inputs.payments_ref || 'develop' }}
           FRAPPE_BRANCH: ${{ inputs.frappe_branch || 'develop' }}
           IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
@@ -68,6 +79,7 @@ jobs:
           owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
           echo "IMAGE=ghcr.io/${owner}/terada-lms" >> "$GITHUB_ENV"
           echo "TAG=${tag}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
       - name: Checkout frappe_docker
         uses: actions/checkout@v4
@@ -77,17 +89,23 @@ jobs:
 
       - name: Write apps.json
         env:
-          LMS_URL: ${{ inputs.lms_url || 'https://github.com/18PhongNguyen/terada-lms' }}
-          LMS_REF: ${{ inputs.lms_ref || 'main' }}
+          LMS_URL: ${{ inputs.lms_url || format('https://github.com/{0}', github.repository) }}
+          LMS_REF: ${{ inputs.lms_ref || github.ref_name }}
           PAYMENTS_REF: ${{ inputs.payments_ref || 'develop' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # This repository is private: clone it with the job token. The token expires when the
+          # job ends, and apps.json reaches the build as a BuildKit secret, not a build arg.
+          if [[ "$LMS_URL" == "https://github.com/${GITHUB_REPOSITORY}" || "$LMS_URL" == "https://github.com/${GITHUB_REPOSITORY}.git" ]]; then
+            LMS_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          fi
           jq -n \
             --arg payments_ref "$PAYMENTS_REF" \
             --arg lms_url "$LMS_URL" \
             --arg lms_ref "$LMS_REF" \
             '[{url: "https://github.com/frappe/payments", branch: $payments_ref}, {url: $lms_url, branch: $lms_ref}]' \
             > apps.json
-          cat apps.json
+          jq 'map(.url |= sub("x-access-token:[^@]*@"; "x-access-token:***@"))' apps.json
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -106,7 +124,9 @@ jobs:
           file: builds/images/layered/Containerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ env.IMAGE }}:${{ env.TAG }}
+          tags: |
+            ${{ env.IMAGE }}:${{ env.TAG }}
+            ${{ env.IMAGE }}:sha-${{ env.SHORT_SHA }}
           build-args: |
             FRAPPE_BRANCH=${{ inputs.frappe_branch || 'develop' }}
             CACHE_BUST=${{ github.run_id }}
@@ -135,7 +155,7 @@ jobs:
           {
             echo "### Image pushed"
             echo
-            echo "\`$IMAGE:$TAG\`"
+            echo "\`$IMAGE:$TAG\` and \`$IMAGE:sha-$SHORT_SHA\`"
             echo
             echo "Set the GHCR package to public so the instance can pull it anonymously."
           } >> "$GITHUB_STEP_SUMMARY"
