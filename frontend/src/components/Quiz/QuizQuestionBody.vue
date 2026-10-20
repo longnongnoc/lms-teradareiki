@@ -92,7 +92,7 @@ import type { BlankResult } from '@/utils/fillBlank'
 import ImageZoomOverlay from '@/components/Quiz/ImageZoomOverlay.vue'
 
 // The question body, sanitized once as DOM nodes. For a Fill Blank question each
-// {{id}} token in a text node becomes an empty placeholder span, and a Vue input
+// [[n]] token in a text node becomes an empty placeholder span, and a Vue input
 // (or, in review, a result chip) is teleported into it. The sanitizer is not
 // widened: an <input> never appears in the markup it sees, and the placeholders
 // are made after it ran, with createElement and setAttribute, not by markup.
@@ -134,7 +134,7 @@ const replaceTokens = (fragment: DocumentFragment): Slot[] => {
 	const walker = doc.createTreeWalker(fragment, NodeFilter.SHOW_TEXT)
 	const texts: Text[] = []
 	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-		if (node.nodeValue?.includes('{{')) texts.push(node as Text)
+		if (node.nodeValue?.includes('[[')) texts.push(node as Text)
 	}
 	const found: Slot[] = []
 	for (const text of texts) {

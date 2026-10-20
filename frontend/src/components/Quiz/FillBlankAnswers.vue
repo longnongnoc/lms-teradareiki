@@ -25,7 +25,7 @@
 			data-testid="fill-blank-row"
 		>
 			<div class="flex items-center justify-between gap-3">
-				<Badge theme="blue" variant="subtle">[{{ row.blank_id }}]</Badge>
+				<Badge theme="blue" variant="subtle">[[{{ row.blank_id }}]]</Badge>
 				<div class="w-28">
 					<FormControl
 						type="number"

@@ -108,11 +108,23 @@ class TestParseAcceptedAnswers:
 
 class TestExtractBlankIds:
 	def test_order_and_dedupe(self):
-		html = "<p>{{2}} then {{ 1 }} then {{2}} and {{3}}</p>"
+		html = "<p>[[2]] then [[1]] then [[2]] and [[3]]</p>"
 		assert extract_blank_ids(html) == ["2", "1", "3"]
 
+	def test_multi_digit_ids(self):
+		assert extract_blank_ids("[[10]] [[2]] [[007]]") == ["10", "2", "007"]
+
 	def test_ignores_malformed_tokens(self):
-		assert extract_blank_ids("{{}} {1} {{ }} {{a b}} {{x}}") == ["x"]
+		assert extract_blank_ids("[[]] [1] [[ ]] [[a b]] [[x]] [[ 1 ]] [[1] {{1}}") == []
+
+	def test_full_width_digits_are_not_markers(self):
+		assert extract_blank_ids("[[１]] [[１２]] [[1２]]") == []
+
+	def test_blank_id_pattern_is_ascii_digits_only(self):
+		assert fill_blank.BLANK_ID.fullmatch("12")
+		assert not fill_blank.BLANK_ID.fullmatch("１２")
+		assert not fill_blank.BLANK_ID.fullmatch("a1")
+		assert not fill_blank.BLANK_ID.fullmatch("")
 
 	def test_empty(self):
 		assert extract_blank_ids("") == []

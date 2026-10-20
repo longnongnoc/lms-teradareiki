@@ -577,7 +577,7 @@ describe('Quiz fill in the blanks', () => {
 			name: 'Q1',
 			type: 'Fill Blank',
 			question:
-				'<p>The {{1}} compresses.</p><table><tbody><tr><td>{{2}}</td></tr></tbody></table>',
+				'<p>The [[1]] compresses.</p><table><tbody><tr><td>[[2]]</td></tr></tbody></table>',
 			blanks: [
 				{ blank_id: '1', marks: 1 },
 				{ blank_id: '2', marks: 2 },
@@ -618,7 +618,7 @@ describe('Quiz fill in the blanks', () => {
 			'Blank 1',
 			'Blank 2',
 		])
-		expect(wrapper.text()).not.toContain('{{')
+		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.text()).toContain('Fill in each blank')
 		expect(wrapper.find('td input').exists()).toBe(true)
 		wrapper.unmount()

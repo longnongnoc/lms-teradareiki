@@ -141,7 +141,7 @@ export function choiceQuestion(text: string, marks = 1) {
 
 export type BlankSpec = { blank_id: string; answers: string; marks?: number };
 
-// `html` carries the {{n}} markers; the marks of the question are the sum of
+// `html` carries the [[n]] markers; the marks of the question are the sum of
 // the blanks, which LMS Question.validate_fill_blanks recomputes anyway.
 export function fillBlankQuestion(html: string, blanks: BlankSpec[]) {
 	const rows = blanks.map((blank) => ({

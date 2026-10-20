@@ -20,12 +20,12 @@ const mountBody = async (props: Record<string, unknown>) => {
 
 const TABLE =
 	'<table><tbody><tr><td>Part</td><td>Name</td></tr>' +
-	'<tr><td>A</td><td>{{1}}</td></tr><tr><td>B</td><td>{{2}}</td></tr></tbody></table>'
+	'<tr><td>A</td><td>[[1]]</td></tr><tr><td>B</td><td>[[2]]</td></tr></tbody></table>'
 
 describe('QuizQuestionBody tokens', () => {
 	it('puts a labelled input where each token is, in paragraphs and table cells', async () => {
 		const wrapper = await mountBody({
-			html: `<p>The {{1}} compresses.</p>${TABLE}`,
+			html: `<p>The [[1]] compresses.</p>${TABLE}`,
 			fillBlank: true,
 		})
 
@@ -36,23 +36,33 @@ describe('QuizQuestionBody tokens', () => {
 			'Blank 1',
 			'Blank 2',
 		])
-		expect(wrapper.text()).not.toContain('{{')
+		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.find('p').text()).toContain('The')
 		expect(wrapper.find('p input').exists()).toBe(true)
 		expect(wrapper.find('td input').exists()).toBe(true)
 		wrapper.unmount()
 	})
 
+	it('only treats [[n]] with ASCII digits as a blank', async () => {
+		const wrapper = await mountBody({
+			html: '<p>{{1}} [[a]] [[１]] [[ 1 ]] [[2]]</p>',
+			fillBlank: true,
+		})
+		expect(wrapper.findAll('input')).toHaveLength(1)
+		expect(wrapper.text()).toContain('{{1}} [[a]] [[１]] [[ 1 ]]')
+		wrapper.unmount()
+	})
+
 	it('leaves tokens alone for any other question type', async () => {
-		const wrapper = await mountBody({ html: '<p>{{1}}</p>' })
+		const wrapper = await mountBody({ html: '<p>[[1]]</p>' })
 		expect(wrapper.findAll('input')).toHaveLength(0)
-		expect(wrapper.text()).toContain('{{1}}')
+		expect(wrapper.text()).toContain('[[1]]')
 		wrapper.unmount()
 	})
 
 	it('does not let the author put a control of their own in', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}}<input name="evil"><button>x</button><img src="x" onerror="window.__pwned = 1"></p>',
+			html: '<p>[[1]]<input name="evil"><button>x</button><img src="x" onerror="window.__pwned = 1"></p>',
 			fillBlank: true,
 		})
 		expect(wrapper.findAll('input')).toHaveLength(1)
@@ -64,18 +74,18 @@ describe('QuizQuestionBody tokens', () => {
 
 	it('does not turn a token inside an attribute into a control', async () => {
 		const wrapper = await mountBody({
-			html: '<p><img src="/files/a.png" alt="{{1}}"> {{2}}</p>',
+			html: '<p><img src="/files/a.png" alt="[[1]]"> [[2]]</p>',
 			fillBlank: true,
 		})
 		expect(wrapper.findAll('input')).toHaveLength(1)
 		expect(wrapper.find('input').attributes('aria-label')).toBe('Blank 2')
-		expect(wrapper.find('img').attributes('alt')).toBe('{{1}}')
+		expect(wrapper.find('img').attributes('alt')).toBe('[[1]]')
 		wrapper.unmount()
 	})
 
 	it('shows typed text and reports each change with its blank id', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}} and {{2}}</p>',
+			html: '<p>[[1]] and [[2]]</p>',
 			fillBlank: true,
 			answers: { '1': '圧縮機' },
 		})
@@ -90,7 +100,7 @@ describe('QuizQuestionBody tokens', () => {
 
 	it('disables the inputs once the question is checked', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}}</p>',
+			html: '<p>[[1]]</p>',
 			fillBlank: true,
 			disabled: true,
 		})
@@ -99,8 +109,8 @@ describe('QuizQuestionBody tokens', () => {
 	})
 
 	it('redraws when the body changes', async () => {
-		const wrapper = await mountBody({ html: '<p>{{1}}</p>', fillBlank: true })
-		await wrapper.setProps({ html: '<p>{{1}} {{2}}</p>' })
+		const wrapper = await mountBody({ html: '<p>[[1]]</p>', fillBlank: true })
+		await wrapper.setProps({ html: '<p>[[1]] [[2]]</p>' })
 		await flushPromises()
 		expect(wrapper.findAll('input')).toHaveLength(2)
 		wrapper.unmount()
@@ -121,7 +131,7 @@ describe('QuizQuestionBody and Japanese IME', () => {
 
 	it('moves to the next blank on Enter, but not while composing', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}} {{2}}</p>',
+			html: '<p>[[1]] [[2]]</p>',
 			fillBlank: true,
 		})
 		const [first, second] = wrapper.findAll('input')
@@ -146,7 +156,7 @@ describe('QuizQuestionBody and Japanese IME', () => {
 	})
 
 	it('stores the converted text, not the half-typed one', async () => {
-		const wrapper = await mountBody({ html: '<p>{{1}}</p>', fillBlank: true })
+		const wrapper = await mountBody({ html: '<p>[[1]]</p>', fillBlank: true })
 		const input = wrapper.find('input')
 		const el = input.element as HTMLInputElement
 
@@ -183,7 +193,7 @@ describe('QuizQuestionBody review', () => {
 
 	it('fills each blank with the answer and marks it right or wrong, with its marks', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}} / {{2}}</p>',
+			html: '<p>[[1]] / [[2]]</p>',
 			fillBlank: true,
 			review: true,
 			results,
@@ -202,7 +212,7 @@ describe('QuizQuestionBody review', () => {
 
 	it('shows accepted answers for an incorrect blank only', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}} / {{2}}</p>',
+			html: '<p>[[1]] / [[2]]</p>',
 			fillBlank: true,
 			review: true,
 			results: {
@@ -219,7 +229,7 @@ describe('QuizQuestionBody review', () => {
 	it('keeps the verdict when the server withheld the answer key', async () => {
 		const { accepted: _hidden, ...hidden } = results['2']
 		const wrapper = await mountBody({
-			html: '<p>{{2}}</p>',
+			html: '<p>[[2]]</p>',
 			fillBlank: true,
 			review: true,
 			results: { '2': hidden },
@@ -232,7 +242,7 @@ describe('QuizQuestionBody review', () => {
 
 	it('escapes what the learner typed', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{1}}</p>',
+			html: '<p>[[1]]</p>',
 			fillBlank: true,
 			review: true,
 			results: {
@@ -248,7 +258,7 @@ describe('QuizQuestionBody review', () => {
 
 	it('says so when a blank was left empty', async () => {
 		const wrapper = await mountBody({
-			html: '<p>{{2}}</p>',
+			html: '<p>[[2]]</p>',
 			fillBlank: true,
 			review: true,
 			results: { '2': { ...results['2'], answer: '' } },
@@ -259,7 +269,7 @@ describe('QuizQuestionBody review', () => {
 })
 
 describe('QuizQuestionBody image zoom', () => {
-	const html = '<p>{{1}}<img src="/files/diagram.png" alt="Cycle diagram"></p>'
+	const html = '<p>[[1]]<img src="/files/diagram.png" alt="Cycle diagram"></p>'
 
 	it('opens the full-size image on click and closes it on click', async () => {
 		const wrapper = await mountBody({ html, fillBlank: true })

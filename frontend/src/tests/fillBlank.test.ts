@@ -24,28 +24,27 @@ const row = (blank_id: string, answers = 'a', marks: number | string = 1) =>
 
 describe('extractBlankIds', () => {
 	it('lists each id once, in order of appearance', () => {
-		expect(extractBlankIds('<p>{{2}} and {{1}} and {{2}}</p>')).toEqual([
+		expect(extractBlankIds('<p>[[2]] and [[1]] and [[2]]</p>')).toEqual([
 			'2',
 			'1',
 		])
 	})
 
-	it('accepts the server pattern: padding inside, any non-space id', () => {
-		expect(extractBlankIds('{{ 1 }} {{a-b}} {{圧縮}}')).toEqual([
-			'1',
-			'a-b',
-			'圧縮',
-		])
+	it('accepts the server pattern: ASCII digits only', () => {
+		expect(extractBlankIds('[[1]] [[10]] [[007]]')).toEqual(['1', '10', '007'])
 	})
 
 	it('ignores broken tokens and empty input', () => {
-		expect(extractBlankIds('{{}} {{ }} {{a b}} {1} {{1}')).toEqual([])
+		expect(
+			extractBlankIds('[[]] [[ 1 ]] [[a]] [[a-b]] [[1.5]] [1] [[1] {{1}}')
+		).toEqual([])
+		expect(extractBlankIds('[[１]] [[１２]] [[圧縮]]')).toEqual([])
 		expect(extractBlankIds(null)).toEqual([])
 		expect(extractBlankIds(undefined)).toEqual([])
 	})
 
 	it('is repeatable, with no state kept between calls', () => {
-		const html = '{{1}}'
+		const html = '[[1]]'
 		expect(extractBlankIds(html)).toEqual(['1'])
 		expect(extractBlankIds(html)).toEqual(['1'])
 	})
@@ -68,7 +67,7 @@ describe('nextBlankId', () => {
 
 describe('splitBlankTokens', () => {
 	it('splits text and blanks in reading order', () => {
-		expect(splitBlankTokens('A {{1}} B{{ 2 }}')).toEqual([
+		expect(splitBlankTokens('A [[1]] B[[2]]')).toEqual([
 			{ type: 'text', value: 'A ' },
 			{ type: 'blank', id: '1' },
 			{ type: 'text', value: ' B' },
@@ -150,7 +149,7 @@ describe('answers and marks rules', () => {
 })
 
 describe('hasValidBlanks', () => {
-	const body = '<p>{{1}} then {{2}}</p>'
+	const body = '<p>[[1]] then [[2]]</p>'
 
 	it('accepts rows that match the tokens and are each valid', () => {
 		expect(hasValidBlanks(body, [row('1'), row('2')])).toBe(true)
@@ -254,7 +253,7 @@ describe('learner answers', () => {
 
 describe('misc', () => {
 	it('writes a token', () => {
-		expect(blankToken(3)).toBe('{{3}}')
+		expect(blankToken(3)).toBe('[[3]]')
 		expect(extractBlankIds(blankToken('3'))).toEqual(['3'])
 	})
 

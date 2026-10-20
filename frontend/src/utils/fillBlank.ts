@@ -1,11 +1,12 @@
 // Pure helpers for the Fill in the Blanks question type. The body is rich HTML
-// holding {{id}} tokens, and the rules here mirror the server's (lms/fill_blank.py
+// holding [[n]] tokens, and the rules here mirror the server's (lms/fill_blank.py
 // and LMS Question's blank validation) so the authoring UI never offers a save
 // the server would refuse.
 
-// Same pattern as the server's BLANK_TOKEN. A fresh RegExp per call, because a
+// Same pattern as the server's BLANK_TOKEN: ASCII digits only, so full-width
+// digits are not markers on either side. A fresh RegExp per call, because a
 // shared /g regex carries lastIndex between uses.
-const TOKEN_SOURCE = String.raw`\{\{\s*([^{}\s]+)\s*\}\}`
+const TOKEN_SOURCE = String.raw`\[\[([0-9]+)\]\]`
 const tokenRegex = (): RegExp => new RegExp(TOKEN_SOURCE, 'g')
 
 export type BlankRow = {
@@ -39,7 +40,7 @@ export type TokenPart =
 	| { type: 'text'; value: string }
 	| { type: 'blank'; id: string }
 
-export const blankToken = (id: string | number): string => `{{${id}}}`
+export const blankToken = (id: string | number): string => `[[${id}]]`
 
 // Ids in order of first appearance, each once.
 export const extractBlankIds = (html?: string | null): string[] => {
@@ -50,7 +51,7 @@ export const extractBlankIds = (html?: string | null): string[] => {
 	return ids
 }
 
-// The smallest positive whole number no token uses yet, so deleting {{2}} and
+// The smallest positive whole number no token uses yet, so deleting [[2]] and
 // inserting again hands 2 back rather than climbing forever.
 export const nextBlankId = (used: Iterable<string>): string => {
 	const taken = new Set(Array.from(used, String))

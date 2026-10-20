@@ -67,7 +67,7 @@ const mountEditor = async (
 }
 
 const base = (over: Record<string, unknown> = {}) => ({
-	question: '<p>The {{1}} and the {{2}}</p>',
+	question: '<p>The [[1]] and the [[2]]</p>',
 	marks: 1,
 	blanks: [],
 	...over,
@@ -84,14 +84,14 @@ describe('QuestionEditor for fill in the blanks', () => {
 		])
 
 		await rows()[1].get('textarea').setValue('凝縮器\ncondenser')
-		working.question = '<p>{{2}} only</p>'
+		working.question = '<p>[[2]] only</p>'
 		await flushPromises()
 		expect(rows()).toHaveLength(1)
 		expect(working.blanks).toEqual([
 			{ blank_id: '2', answers: '凝縮器\ncondenser', marks: 1 },
 		])
 
-		working.question = '<p>{{2}} {{3}}</p>'
+		working.question = '<p>[[2]] [[3]]</p>'
 		await flushPromises()
 		expect(rows()).toHaveLength(2)
 		expect(
@@ -103,14 +103,14 @@ describe('QuestionEditor for fill in the blanks', () => {
 	it('inserts the next unused token at the cursor', async () => {
 		insertText.mockClear()
 		const { wrapper } = await mountEditor(
-			base({ question: '<p>{{1}} {{3}}</p>' })
+			base({ question: '<p>[[1]] [[3]]</p>' })
 		)
 		const button = wrapper
 			.findAll('button')
 			.find((b) => b.text() === 'Insert blank')
 		expect(button).toBeDefined()
 		await button!.trigger('click')
-		expect(insertText).toHaveBeenCalledWith('{{2}}')
+		expect(insertText).toHaveBeenCalledWith('[[2]]')
 		wrapper.unmount()
 	})
 

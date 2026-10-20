@@ -41,7 +41,7 @@ describe('QuestionCard collapsed, fill in the blanks', () => {
 		question: 'Q1',
 		marks: 3,
 		type: 'Fill Blank',
-		question_detail: '<p>The {{1}} compresses and the {{ 2 }} condenses</p>',
+		question_detail: '<p>The [[1]] compresses and the [[2]] condenses</p>',
 	}
 
 	it('shows the type, the blank count and tokens as numbered chips', async () => {
@@ -51,13 +51,13 @@ describe('QuestionCard collapsed, fill in the blanks', () => {
 		expect(
 			wrapper.findAll('[data-testid="blank-chip"]').map((c) => c.text())
 		).toEqual(['[1]', '[2]'])
-		expect(wrapper.text()).not.toContain('{{')
+		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.text()).toContain('compresses')
 		wrapper.unmount()
 	})
 
 	it('counts a single blank in the singular', async () => {
-		const wrapper = await mountCard({ ...row, question_detail: '<p>{{1}}</p>' })
+		const wrapper = await mountCard({ ...row, question_detail: '<p>[[1]]</p>' })
 		expect(wrapper.get('[data-testid="blank-count"]').text()).toBe('1 blank')
 		wrapper.unmount()
 	})
@@ -66,11 +66,11 @@ describe('QuestionCard collapsed, fill in the blanks', () => {
 		const wrapper = await mountCard({
 			...row,
 			type: 'User Input',
-			question_detail: '<p>plain {{1}}</p>',
+			question_detail: '<p>plain [[1]]</p>',
 		})
 		expect(wrapper.find('[data-testid="blank-chip"]').exists()).toBe(false)
 		expect(wrapper.find('[data-testid="blank-count"]').exists()).toBe(false)
-		expect(wrapper.text()).toContain('plain {{1}}')
+		expect(wrapper.text()).toContain('plain [[1]]')
 		wrapper.unmount()
 	})
 })

@@ -10,7 +10,8 @@ import json
 import re
 import unicodedata
 
-BLANK_TOKEN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
+BLANK_ID = re.compile(r"[0-9]+")
+BLANK_TOKEN = re.compile(r"\[\[([0-9]+)\]\]")
 _WHITESPACE = re.compile(r"\s+")
 _ZERO_WIDTH = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
 

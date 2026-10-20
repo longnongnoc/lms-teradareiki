@@ -65,7 +65,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		const symbols = await insertDoc(
 			api,
 			fillBlankQuestion(
-				`<p>Maximum operating temperature {{1}}, unit of resistance {{2}}, test in katakana {{3}} (${runToken})</p>`,
+				`<p>Maximum operating temperature [[1]], unit of resistance [[2]], test in katakana [[3]] (${runToken})</p>`,
 				[
 					{ blank_id: "1", answers: DEGREE_C },
 					{ blank_id: "2", answers: GREEK_OMEGA },
@@ -85,7 +85,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		const image = await insertDoc(
 			api,
 			fillBlankQuestion(
-				`<p>Name of the product shown below {{1}} (${runToken})</p><p><img src="${LOGO_PATH}" alt="E2E product logo"></p>`,
+				`<p>Name of the product shown below [[1]] (${runToken})</p><p><img src="${LOGO_PATH}" alt="E2E product logo"></p>`,
 				[{ blank_id: "1", answers: "lms" }]
 			)
 		);
@@ -158,8 +158,8 @@ test.describe("Fill in the Blanks quiz", () => {
 		await expect(rows).toHaveCount(2);
 		await page.keyboard.type(".");
 
-		await expect(rows.nth(0)).toContainText("[1]");
-		await expect(rows.nth(1)).toContainText("[2]");
+		await expect(rows.nth(0)).toContainText("[[1]]");
+		await expect(rows.nth(1)).toContainText("[[2]]");
 
 		// Saving needs an accepted answer for every blank.
 		const save = draft.getByRole("button", { name: "Save question" });

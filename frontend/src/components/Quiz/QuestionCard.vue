@@ -249,7 +249,7 @@ const strippedQuestionDetail = computed(() =>
 	htmlToText(props.row.question_detail).trim()
 )
 const isFillBlank = computed(() => uiType.value === 'fill_blank')
-// Tokens read as [1] chips in the collapsed row, instead of {{1}} in running text.
+// Tokens read as [1] chips in the collapsed row, instead of [[1]] in running text.
 const detailParts = computed(() =>
 	splitBlankTokens(strippedQuestionDetail.value)
 )

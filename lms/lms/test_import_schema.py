@@ -20,7 +20,8 @@ MAX_DURATION_MINUTES = 240
 
 QUESTION_TYPES = ("fill_blank", "single_choice", "multiple_choice", "user_input")
 
-BLANK_TOKEN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
+BLANK_ID = re.compile(r"[0-9]+")
+BLANK_TOKEN = re.compile(r"\[\[([0-9]+)\]\]")
 RESERVED_OPTION_TEXT = re.compile(r"\[image:\d+\]")
 FILE_URL_PREFIXES = ("/files/", "/private/files/")
 
@@ -283,8 +284,8 @@ def _validate_fill_blank(question, path, errors):
 		)
 		if not blank_id:
 			errors.append(f"{blank_path}.id: required")
-		elif BLANK_TOKEN.fullmatch("{{" + blank_id + "}}") is None:
-			errors.append(f"{blank_path}.id: cannot contain spaces or braces")
+		elif BLANK_ID.fullmatch(blank_id) is None:
+			errors.append(f"{blank_path}.id: digits only, such as 1 or 2")
 		elif blank_id in ids:
 			errors.append(f"{blank_path}.id: duplicate blank id {blank_id!r}")
 		else:
@@ -303,7 +304,7 @@ def _validate_fill_blank(question, path, errors):
 	missing = [blank_id for blank_id in ids if blank_id not in tokens]
 	extra = [token for token in tokens if token not in ids]
 	if missing:
-		errors.append(f"{path}.body: no {{{{id}}}} marker for blanks {', '.join(missing)}")
+		errors.append(f"{path}.body: no [[n]] marker for blanks {', '.join(missing)}")
 	if extra:
 		errors.append(f"{path}.body: markers without a blank {', '.join(extra)}")
 
