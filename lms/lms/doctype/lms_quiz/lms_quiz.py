@@ -652,7 +652,9 @@ def process_results(results: list, quiz_details: dict):
 
 		if question_details.type == "Fill Blank":
 			graded = apply_negative_marking(
-				grade_fill_blank(get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)),
+				grade_fill_blank(
+					get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)
+				),
 				quiz_details.enable_negative_marking,
 				quiz_details.marks_to_cut,
 			)
