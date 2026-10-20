@@ -213,8 +213,14 @@ export const hasRequiredPossibilities = (question) =>
 
 // The [[1]], [[2]]... markers in a Blanks question's text, in order of appearance.
 // validate_blanks on the server reads the same pattern off the same HTML.
+// Tags become a placeholder, as on the server: a marker inside an attribute, or split
+// across tags, gets no input and is not a blank.
 export const blankNumbers = (html) =>
-	[...String(html ?? '').matchAll(/\[\[(\d+)\]\]/g)].map((m) => Number(m[1]))
+	[
+		...String(html ?? '')
+			.replace(/<[^>]*>/g, '\0')
+			.matchAll(/\[\[(\d+)\]\]/g),
+	].map((m) => Number(m[1]))
 
 export const blanksNumberedInOrder = (html) =>
 	blankNumbers(html).every((n, i) => n === i + 1)
@@ -224,7 +230,12 @@ export const hasRequiredBlanks = (question) => {
 	const numbers = blankNumbers(question?.question)
 	if (!numbers.length || !blanksNumberedInOrder(question.question)) return false
 	const lines = String(question.blank_answers ?? '').split('\n')
-	return numbers.every((_, i) => filled(lines[i]))
+	// `|` alone is a line with no accepted answer, so each line needs a real entry.
+	return numbers.every((_, i) =>
+		String(lines[i] ?? '')
+			.split('|')
+			.some(filled)
+	)
 }
 
 // The mandatory-field rule for one question, shared by the card in a quiz and

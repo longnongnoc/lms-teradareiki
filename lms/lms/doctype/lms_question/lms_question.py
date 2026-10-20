@@ -78,12 +78,18 @@ def validate_possible_answer(question):
 
 
 def validate_blanks(question):
-	markers = re.findall(r"\[\[(\d+)\]\]", question.question or "")
-	lines = [line for line in (question.blank_answers or "").splitlines() if line.strip()]
+	# Tags become a placeholder so a marker inside an attribute (an alt text) is not a
+	# blank, and one split across tags ([[<b>1</b>]]) is not either: neither gets an input.
+	text = re.sub(r"<[^>]*>", "\x00", question.question or "")
+	markers = re.findall(r"\[\[(\d+)\]\]", text)
+	lines = (question.blank_answers or "").rstrip().splitlines()
 	if not markers or markers != [str(i) for i in range(1, len(markers) + 1)]:
 		frappe.throw(_("Mark the blanks in the question as [[1]], [[2]], ... in order."))
 	if len(lines) != len(markers):
 		frappe.throw(_("Give one line of accepted answers for each of the {0} blanks.").format(len(markers)))
+	for number, line in enumerate(lines, 1):
+		if not any(answer.strip() for answer in line.split("|")):
+			frappe.throw(_("Blank [[{0}]] needs at least one accepted answer.").format(number))
 
 
 def update_question_title(question):

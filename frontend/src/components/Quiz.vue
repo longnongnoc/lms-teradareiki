@@ -1601,7 +1601,8 @@ const getAnswers = (): Answer[] => {
 			if (value) answers.push(details[`option_${index + 1}`])
 		})
 	} else if (details.type == 'Blanks') {
-		answers.push(...blankAnswers.value)
+		// All inputs empty is no answer, so the question still counts as unattempted.
+		if (blankAnswers.value.some((a) => a?.trim())) answers.push(...blankAnswers.value)
 	} else {
 	answers.push(possibleAnswer.value)
 	}
