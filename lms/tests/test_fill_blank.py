@@ -15,6 +15,7 @@ normalize_answer = fill_blank.normalize_answer
 parse_accepted_answers = fill_blank.parse_accepted_answers
 extract_blank_ids = fill_blank.extract_blank_ids
 grade_fill_blank = fill_blank.grade_fill_blank
+apply_negative_marking = fill_blank.apply_negative_marking
 parse_submitted_answer = fill_blank.parse_submitted_answer
 
 
@@ -196,7 +197,7 @@ class TestGradeFillBlank:
 		assert graded["marks"] == 1
 		assert graded["marks_out_of"] == 1
 
-	def test_no_negative_marking(self):
+	def test_wrong_answer_scores_zero_by_default(self):
 		graded = grade_fill_blank([_blank("1", "a", 4)], {"1": "z"})
 		assert graded["marks"] == 0
 
@@ -213,6 +214,41 @@ class TestGradeFillBlank:
 	def test_extra_submitted_keys_are_ignored(self):
 		graded = grade_fill_blank([_blank("1", "a")], {"1": "a", "99": "a"})
 		assert len(graded["results"]) == 1
+
+
+class TestNegativeMarking:
+	def _graded(self, submitted):
+		blanks = [_blank("1", "a", 2), _blank("2", "b", 3)]
+		return grade_fill_blank(blanks, submitted)
+
+	def test_off_all_wrong_costs_nothing(self):
+		graded = apply_negative_marking(self._graded({"1": "x", "2": "y"}), 0, 2)
+		assert graded["marks"] == 0
+
+	def test_on_all_wrong_costs_marks_to_cut(self):
+		graded = apply_negative_marking(self._graded({"1": "x", "2": "y"}), 1, 2)
+		assert graded["marks"] == -2
+		assert graded["marks_out_of"] == 5
+
+	def test_on_nothing_answered_costs_marks_to_cut(self):
+		assert apply_negative_marking(self._graded({}), 1, 1)["marks"] == -1
+
+	def test_on_partial_credit_is_not_reduced(self):
+		graded = apply_negative_marking(self._graded({"1": "a", "2": "y"}), 1, 2)
+		assert graded["marks"] == 2
+
+	def test_on_all_right_is_not_reduced(self):
+		graded = apply_negative_marking(self._graded({"1": "a", "2": "b"}), 1, 2)
+		assert graded["marks"] == 5
+
+	def test_on_without_a_cut_costs_nothing(self):
+		assert apply_negative_marking(self._graded({"1": "x"}), 1, 0)["marks"] == 0
+		assert apply_negative_marking(self._graded({"1": "x"}), 1, None)["marks"] == 0
+
+	def test_per_blank_results_are_left_alone(self):
+		graded = apply_negative_marking(self._graded({"1": "x", "2": "y"}), 1, 2)
+		assert [r["marks"] for r in graded["results"]] == [0, 0]
+		assert graded["is_correct"] is False
 
 
 class TestParseSubmittedAnswer:

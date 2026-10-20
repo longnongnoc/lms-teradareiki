@@ -38,7 +38,7 @@ from lms.lms.doctype.lms_question.lms_question import (
 	QUESTION_OPTION_IMAGE_FIELDS,
 	QUESTION_POSSIBILITY_FIELDS,
 )
-from lms.lms.fill_blank import grade_fill_blank, parse_submitted_answer
+from lms.lms.fill_blank import apply_negative_marking, grade_fill_blank, parse_submitted_answer
 from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
@@ -651,8 +651,10 @@ def process_results(results: list, quiz_details: dict):
 		result["question_type"] = question_details.type
 
 		if question_details.type == "Fill Blank":
-			graded = grade_fill_blank(
-				get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)
+			graded = apply_negative_marking(
+				grade_fill_blank(get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)),
+				quiz_details.enable_negative_marking,
+				quiz_details.marks_to_cut,
 			)
 			# One entry per real blank: stray keys from a forged payload are not stored.
 			result["answer"] = json.dumps(
@@ -837,7 +839,14 @@ def check_answer(quiz: str, question: str, question_type: str, answers: str):
 		if frappe.db.get_value("LMS Question", question, "type") != "Fill Blank":
 			frappe.throw(_("Invalid question type."), frappe.ValidationError)
 		submitted = parse_submitted_answer(answers[0] if answers else None)
-		return grade_fill_blank(get_fill_blanks(question), submitted)
+		quiz_details = frappe.db.get_value(
+			"LMS Quiz", quiz, ["enable_negative_marking", "marks_to_cut"], as_dict=True
+		)
+		return apply_negative_marking(
+			grade_fill_blank(get_fill_blanks(question), submitted),
+			quiz_details.enable_negative_marking,
+			quiz_details.marks_to_cut,
+		)
 
 	# A blank input answer (empty list, or the [null] the UI emits for an untouched field)
 	# scores as incorrect; coerce to "" so answers[0] can't IndexError / feed None onward.
@@ -905,7 +914,7 @@ def get_fill_blank_review(submission: str):
 			"parenttype": "LMS Quiz Submission",
 			"question_type": "Fill Blank",
 		},
-		fields=["question_name", "answer"],
+		fields=["question_name", "answer", "marks"],
 		order_by="idx asc",
 	)
 
@@ -914,6 +923,9 @@ def get_fill_blank_review(submission: str):
 		graded = grade_fill_blank(
 			get_fill_blanks(result_row.question_name), parse_submitted_answer(result_row.answer)
 		)
+		# A deduction under negative marking is stored on the result, not derived from the blanks.
+		if cint(result_row.marks) < 0:
+			graded["marks"] = cint(result_row.marks)
 		if not reveal:
 			for item in graded["results"]:
 				item.pop("accepted", None)

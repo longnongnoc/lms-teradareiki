@@ -97,6 +97,15 @@ def grade_fill_blank(blanks: list[dict], submitted: dict) -> dict:
 	}
 
 
+def apply_negative_marking(graded: dict, enabled, marks_to_cut) -> dict:
+	"""Under negative marking, an answer with no blank right costs marks_to_cut, like a wrong
+	Choices or User Input answer. Any blank right, however few, is graded as it stands:
+	partial credit is never turned into a deduction."""
+	if enabled and not any(item["is_correct"] for item in graded["results"]):
+		graded["marks"] = -_number(marks_to_cut or 0)
+	return graded
+
+
 def parse_submitted_answer(raw) -> dict:
 	if isinstance(raw, str | bytes | bytearray):
 		try:
