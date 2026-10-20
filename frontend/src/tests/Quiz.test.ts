@@ -765,6 +765,23 @@ describe('Quiz fill in the blanks', () => {
 		expect(section.text()).toContain('No answer')
 		wrapper.unmount()
 	})
+
+	it('shows no review section when the server returns none, as for a learner with Show Answer Review off', async () => {
+		const wrapper = await begin({ show_answer_review: 0 })
+		;(wrapper.vm as any).quizSubmission.data = {
+			submission: 'SUB-1',
+			percentage: 50,
+			score: 1,
+			score_out_of: 3,
+		}
+		;(wrapper.vm as any).fillBlankReview.data = {}
+		await flushPromises()
+
+		expect(wrapper.find('[data-testid="fill-blank-review"]').exists()).toBe(
+			false
+		)
+		wrapper.unmount()
+	})
 })
 
 describe('Quiz sections', () => {

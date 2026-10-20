@@ -131,6 +131,12 @@
 										>
 											{{ __('Could not load the blank results.') }}
 										</span>
+										<span
+											v-else-if="fillBlankReview.data"
+											class="text-ink-gray-6"
+										>
+											{{ __('The blank results are not shown for this quiz.') }}
+										</span>
 										<span v-else class="text-ink-gray-6">{{
 											__('Loading')
 										}}</span>

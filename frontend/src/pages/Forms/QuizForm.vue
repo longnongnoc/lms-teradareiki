@@ -331,6 +331,16 @@
 						"
 					/>
 					<BooleanSwitch
+						v-model="doc.show_answer_review"
+						size="sm"
+						:label="__('Show Answer Review')"
+						:description="
+							__(
+								'After submitting, show which blanks of a fill in the blanks question were right or wrong.'
+							)
+						"
+					/>
+					<BooleanSwitch
 						v-model="doc.show_submission_history"
 						size="sm"
 						:label="__('Show Submission History')"

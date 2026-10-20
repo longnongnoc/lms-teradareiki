@@ -12,6 +12,7 @@
   "max_attempts",
   "show_answers",
   "show_submission_history",
+  "show_answer_review",
   "column_break_gaac",
   "total_marks",
   "total_questions",
@@ -99,6 +100,13 @@
    "fieldname": "show_submission_history",
    "fieldtype": "Check",
    "label": "Show Submission History"
+  },
+  {
+   "default": "1",
+   "description": "After submitting, learners see which blanks of a fill in the blanks question were right or wrong. The accepted answers are shown only when Show Answers is on.",
+   "fieldname": "show_answer_review",
+   "fieldtype": "Check",
+   "label": "Show Answer Review"
   },
   {
    "fieldname": "passing_percentage",
@@ -224,7 +232,7 @@
    "link_fieldname": "quiz"
   }
  ],
- "modified": "2026-10-19 20:00:00.000000",
+ "modified": "2026-10-20 12:00:00.000000",
  "modified_by": "sayali@frappe.io",
  "module": "LMS",
  "name": "LMS Quiz",

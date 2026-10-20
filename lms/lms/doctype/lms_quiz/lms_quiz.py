@@ -891,7 +891,8 @@ def get_fill_blank_review(submission: str):
 
 	The accepted answers are only included for a viewer who may see the answer key: a
 	privileged role, or a quiz that reveals answers (show_answers). Anyone else gets each
-	blank's own answer, is_correct and marks.
+	blank's own answer, is_correct and marks. A learner gets nothing when the quiz has
+	Show Answer Review off; staff always get the review.
 	"""
 	if not isinstance(submission, str):
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
@@ -904,8 +905,13 @@ def get_fill_blank_review(submission: str):
 	):
 		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
 
-	show_answers = frappe.db.get_value("LMS Quiz", row.quiz, "show_answers")
-	reveal = bool(PRIVILEGED_ROLES & set(frappe.get_roles())) or bool(show_answers)
+	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
+	privileged = bool(PRIVILEGED_ROLES & set(frappe.get_roles()))
+	# Anyone past the own-submission check who is not the member is reading it as staff.
+	is_staff = privileged or row.member != frappe.session.user
+	if not is_staff and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+		return {}
+	reveal = privileged or bool(quiz.show_answers)
 
 	result_rows = frappe.get_all(
 		"LMS Quiz Result",

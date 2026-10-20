@@ -25,6 +25,8 @@ export interface LMSQuiz {
 	show_answers?: 0 | 1
 	/**	Show Submission History : Check	*/
 	show_submission_history?: 0 | 1
+	/**	Show Answer Review : Check	*/
+	show_answer_review?: 0 | 1
 	/**	Passing Percentage : Int	*/
 	passing_percentage: number
 	/**	Total Marks : Int	*/
