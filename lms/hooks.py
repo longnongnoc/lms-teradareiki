@@ -196,6 +196,7 @@ doc_events = {
 	},
 	"LMS Question": {"validate": CHILD_ROW_MOVE_GATE},
 	"LMS Quiz Question": {"validate": CHILD_ROW_MOVE_GATE},
+	"LMS Question Blank": {"validate": CHILD_ROW_MOVE_GATE},
 	"LMS Test Case": {"validate": CHILD_ROW_MOVE_GATE},
 	"LMS Content Author": {"validate": CHILD_ROW_MOVE_GATE},
 	# LMS Program carries `authors` too -- composed into its own has_permission hook
