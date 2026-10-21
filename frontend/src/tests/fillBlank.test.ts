@@ -5,8 +5,10 @@ import {
 	blankErrors,
 	blanksPayload,
 	blankToken,
+	duplicateBlankIds,
 	extractBlankIds,
 	hasFillBlankAnswer,
+	hasNearMissMarker,
 	hasValidBlanks,
 	indexBlankResults,
 	nextBlankId,
@@ -114,6 +116,89 @@ describe('syncBlanks', () => {
 			{ blank_id: '1', answers: '', marks: 1 },
 		])
 	})
+
+	describe('with a memory of removed rows', () => {
+		it('gives a row back, answers and marks, when its id returns', () => {
+			const removed = new Map<string, BlankRow>()
+			const gone = syncBlanks([row('1'), row('2', 'two', 3)], ['1'], removed)
+			expect(gone).toEqual([row('1')])
+			expect(removed.get('2')).toEqual(row('2', 'two', 3))
+
+			expect(syncBlanks(gone, ['1', '2'], removed)).toEqual([
+				row('1'),
+				row('2', 'two', 3),
+			])
+			expect(removed.size).toBe(0)
+		})
+
+		it('puts a returning row where its id now sits in the body', () => {
+			const removed = new Map<string, BlankRow>()
+			const gone = syncBlanks([row('1', 'one'), row('2', 'two')], ['2'], removed)
+			expect(syncBlanks(gone, ['1', '2'], removed)).toEqual([
+				row('1', 'one'),
+				row('2', 'two'),
+			])
+		})
+
+		it('still starts an id it never saw with no answers and one mark', () => {
+			const removed = new Map<string, BlankRow>([['9', row('9', 'nine')]])
+			expect(syncBlanks([row('1')], ['1', '2'], removed)).toEqual([
+				row('1'),
+				{ blank_id: '2', answers: '', marks: 1 },
+			])
+		})
+
+		it('remembers the latest row when an id is removed twice', () => {
+			const removed = new Map<string, BlankRow>()
+			syncBlanks([row('1', 'first')], [], removed)
+			const back = syncBlanks([], ['1'], removed)
+			expect(back).toEqual([row('1', 'first')])
+			syncBlanks([row('1', 'second')], [], removed)
+			expect(removed.get('1')).toEqual(row('1', 'second'))
+		})
+	})
+})
+
+describe('duplicateBlankIds', () => {
+	it('lists an id used more than once, once, in order', () => {
+		expect(duplicateBlankIds('[[2]] [[1]] [[2]] [[1]] [[2]] [[3]]')).toEqual([
+			'2',
+			'1',
+		])
+	})
+
+	it('is empty when every marker is distinct', () => {
+		expect(duplicateBlankIds('<p>[[1]] [[2]]</p>')).toEqual([])
+		expect(duplicateBlankIds(undefined)).toEqual([])
+	})
+})
+
+describe('hasNearMissMarker', () => {
+	it.each([
+		'<p>［［１］］</p>',
+		'<p>［［1］］</p>',
+		'<p>「「1」」</p>',
+		'<p>【【2】】</p>',
+		'<p>[[１]]</p>',
+		'<p>[[ 1 ]]</p>',
+		'<p>[[1]] and ［［２］］</p>',
+	])('flags %s', (html) => {
+		expect(hasNearMissMarker(html)).toBe(true)
+	})
+
+	it.each([
+		'<p>[[1]] [[22]]</p>',
+		'<p>plain text 1</p>',
+		'<p>[[1]</p>',
+		'<p>[[a]]</p>',
+		'',
+	])('leaves %s alone', (html) => {
+		expect(hasNearMissMarker(html)).toBe(false)
+	})
+
+	it('does not read markup as a marker', () => {
+		expect(hasNearMissMarker('<p [[1]]="x">ok</p>')).toBe(false)
+	})
 })
 
 describe('answers and marks rules', () => {
@@ -164,6 +249,13 @@ describe('hasValidBlanks', () => {
 		expect(hasValidBlanks(body, [row('1')])).toBe(false)
 		expect(hasValidBlanks(body, [row('1'), row('3')])).toBe(false)
 		expect(hasValidBlanks(body, [row('1'), row('2'), row('3')])).toBe(false)
+	})
+
+	it('refuses a marker used twice, even though one row covers both', () => {
+		expect(hasValidBlanks('<p>[[1]] [[1]]</p>', [row('1')])).toBe(false)
+		expect(hasValidBlanks('<p>[[1]] [[2]]</p>', [row('1'), row('2')])).toBe(
+			true
+		)
 	})
 
 	it('refuses a duplicate id', () => {

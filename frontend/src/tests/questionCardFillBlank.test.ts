@@ -9,8 +9,15 @@ vi.mock('frappe-ui', () => ({
 	createResource: vi.fn(),
 }))
 
+const focusFirstInvalid = vi.hoisted(() => vi.fn())
+
 vi.mock('@/components/Quiz/QuestionEditor.vue', () => ({
-	default: { template: '<div />', methods: { focus() {}, resetTouched() {} } },
+	default: {
+		name: 'QuestionEditorStub',
+		props: ['revealErrors'],
+		template: '<div />',
+		methods: { focus() {}, resetTouched() {}, focusFirstInvalid },
+	},
 }))
 
 String.prototype.format = function (this: string, ...args: unknown[]): string {
@@ -71,6 +78,29 @@ describe('QuestionCard collapsed, fill in the blanks', () => {
 		expect(wrapper.find('[data-testid="blank-chip"]').exists()).toBe(false)
 		expect(wrapper.find('[data-testid="blank-count"]').exists()).toBe(false)
 		expect(wrapper.text()).toContain('plain [[1]]')
+		wrapper.unmount()
+	})
+})
+
+describe('QuestionCard save on an invalid question', () => {
+	const row = { name: 'r1', marks: 1, type: 'Choices' }
+	const saveButton = (wrapper: any) =>
+		wrapper
+			.findAll('button')
+			.find((b: any) => b.attributes('label') === 'Save question')
+
+	it('keeps Save enabled on a new question, and a tap shows the errors and finds the first fault', async () => {
+		focusFirstInvalid.mockClear()
+		const wrapper = await mountCard(row, { draft: true })
+		const editor = () => wrapper.findComponent({ name: 'QuestionEditorStub' })
+		expect(editor().props('revealErrors')).toBe(false)
+		expect(saveButton(wrapper).attributes('disabled')).toBeUndefined()
+
+		await saveButton(wrapper).trigger('click')
+		await flushPromises()
+		expect(editor().props('revealErrors')).toBe(true)
+		expect(focusFirstInvalid).toHaveBeenCalledTimes(1)
+		expect(wrapper.emitted('request-persist')).toBeUndefined()
 		wrapper.unmount()
 	})
 })

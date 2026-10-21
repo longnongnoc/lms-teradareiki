@@ -66,6 +66,19 @@ main#main-content {
 	}
 }
 
+/* Chrome renders number spinners at the inline end of the field, on top of the
+   "marks" suffix. Firefox needs the -moz property for the same reason. Shared by
+   every marks field in the question editors. */
+.marks-input input[type='number']::-webkit-outer-spin-button,
+.marks-input input[type='number']::-webkit-inner-spin-button {
+	-webkit-appearance: none;
+	margin: 0;
+}
+.marks-input input[type='number'] {
+	-moz-appearance: textfield;
+	appearance: textfield;
+}
+
 /* frappe-ui's --ink-gray-2 bullets are near-invisible; match the ink-gray-4 counters. */
 .prose {
 	--tw-prose-bullets: var(--ink-gray-4);

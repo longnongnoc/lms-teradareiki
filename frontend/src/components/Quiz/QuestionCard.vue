@@ -32,7 +32,7 @@
 					<span
 						v-if="part.type === 'blank'"
 						data-testid="blank-chip"
-						class="mx-0.5 rounded-4 bg-surface-blue-2 px-1 text-xs text-ink-blue-5"
+						class="mx-0.5 rounded-4 bg-surface-blue-2 px-1 text-xs text-ink-blue-8"
 						>[{{ part.id }}]</span
 					>
 					<template v-else>{{ part.value }}</template>
@@ -160,7 +160,7 @@
 				<Button
 					:label="__('Save question')"
 					:loading="saving || persistInFlight"
-					:disabled="!isValid || saving || persistInFlight"
+					:disabled="saving || persistInFlight"
 					@click="handleSave"
 				>
 					<template #prefix><span class="lucide-check size-4" /></template>
@@ -293,8 +293,10 @@ const discardBlocked = computed(() => props.draft && persistInFlight.value)
 
 const currentType = computed(() => uiTypeMeta(uiType.value))
 
-// A stored question was already invalid on arrival, so it says so at once; a draft waits.
-const revealErrors = computed(() => !props.draft)
+// A stored question was already invalid on arrival, so it says so at once; a draft
+// waits until the author tries to save it.
+const saveRefused = ref(false)
+const revealErrors = computed(() => !props.draft || saveRefused.value)
 
 // Loads the full question on first edit. Marks stay the quiz row's, not the
 // bank record's, because this quiz may score the question its own way.
@@ -435,8 +437,16 @@ const save = async () => {
 }
 
 // The Save button commits and closes. A draft hands the parent a doc to insert.
+// Save stays enabled when the question is invalid, so a tap is never answered with
+// nothing: every error is shown and the first field at fault takes focus.
 const handleSave = async () => {
-	if (!isValid.value || saving.value || persistInFlight.value) return
+	if (saving.value || persistInFlight.value) return
+	if (!isValid.value) {
+		saveRefused.value = true
+		await nextTick()
+		editorRef.value?.focusFirstInvalid()
+		return
+	}
 	if (props.draft) {
 		// The draft path skips save(), so latch here for the double click, then defer to `persisting`.
 		persistRequested.value = true

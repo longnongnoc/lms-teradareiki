@@ -3,7 +3,7 @@
 		<div class="flex items-center justify-between gap-3">
 			<div class="text-sm-semibold text-ink-gray-8">{{ __('Blanks') }}</div>
 			<span class="text-p-sm text-ink-gray-6" data-testid="fill-blank-total">
-				{{ __('Total') }}: {{ marksLabel(total) }}
+				{{ __('Total: {0}').format(marksLabel(total)) }}
 			</span>
 		</div>
 
@@ -26,7 +26,7 @@
 		>
 			<div class="flex items-center justify-between gap-3">
 				<Badge theme="blue" variant="subtle">[[{{ row.blank_id }}]]</Badge>
-				<div class="w-28">
+				<div class="marks-input w-28">
 					<FormControl
 						type="number"
 						variant="outline"
@@ -36,6 +36,9 @@
 						:modelValue="row.marks"
 						:aria-label="__('Marks for blank {0}').format(row.blank_id)"
 						:aria-invalid="marksInvalid(row) || undefined"
+						:aria-describedby="
+							marksInvalid(row) ? messageId(row, 'marks') : undefined
+						"
 						@update:modelValue="(val) => update(row.blank_id, 'marks', val)"
 						@blur="touch(row.blank_id)"
 					>
@@ -53,13 +56,23 @@
 				:rows="3"
 				:class="answersInvalid(row) ? INVALID_TEXTAREA_CLASS : null"
 				:label="__('Accepted answers (one per line)')"
+				:placeholder="answersPlaceholder"
 				:modelValue="row.answers"
 				:aria-invalid="answersInvalid(row) || undefined"
+				:aria-describedby="answersDescribedBy(row)"
 				@update:modelValue="(val) => update(row.blank_id, 'answers', val)"
 				@blur="touch(row.blank_id)"
 			/>
+			<p :id="messageId(row, 'hint')" class="text-p-sm text-ink-gray-6">
+				{{
+					__(
+						'Hiragana/katakana, full/half-width, spaces, punctuation and okurigana variants match automatically.'
+					)
+				}}
+			</p>
 			<p
 				v-if="answersInvalid(row)"
+				:id="messageId(row, 'answers')"
 				class="flex items-center gap-1.5 text-p-sm text-ink-red-5"
 			>
 				<span class="lucide-circle-alert size-4 shrink-0" />
@@ -67,6 +80,7 @@
 			</p>
 			<p
 				v-if="marksInvalid(row)"
+				:id="messageId(row, 'marks')"
 				class="flex items-center gap-1.5 text-p-sm text-ink-red-5"
 			>
 				<span class="lucide-circle-alert size-4 shrink-0" />
@@ -78,7 +92,7 @@
 
 <script setup>
 import { Badge, FormControl } from 'frappe-ui'
-import { computed, reactive } from 'vue'
+import { computed, reactive, useId } from 'vue'
 import { blankErrors, blankToken, totalBlankMarks } from '@/utils/fillBlank'
 import { marksLabel } from '@/utils/quizQuestion'
 
@@ -93,6 +107,19 @@ const INVALID_INPUT_CLASS = '[&_input]:!border-outline-red-3'
 const INVALID_TEXTAREA_CLASS = '[&_textarea]:!border-outline-red-3'
 
 const rows = computed(() => props.question.blanks ?? [])
+
+// One base id per panel, so two editors on a page keep distinct ids; each row
+// adds its blank id.
+const baseId = useId()
+const messageId = (row, part) => `${baseId}-${row.blank_id}-${part}`
+const answersDescribedBy = (row) =>
+	answersInvalid(row)
+		? `${messageId(row, 'hint')} ${messageId(row, 'answers')}`
+		: messageId(row, 'hint')
+
+const answersPlaceholder = computed(() =>
+	[__('Example: compressor'), __('Example: air compressor')].join('\n')
+)
 const total = computed(() => totalBlankMarks(rows.value))
 
 // Blur, keyed by blank id, so a row the author has not reached stays quiet.
