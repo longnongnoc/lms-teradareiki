@@ -42,6 +42,7 @@ export interface QuizDetails {
 	max_attempts?: number
 	show_answers?: 0 | 1
 	show_submission_history?: 0 | 1
+	show_answer_review?: 0 | 1
 	shuffle_questions?: 0 | 1
 	limit_questions_to?: number
 	enable_proctoring?: 0 | 1

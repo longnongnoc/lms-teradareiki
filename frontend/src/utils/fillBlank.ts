@@ -1,11 +1,12 @@
 // Pure helpers for the Fill in the Blanks question type. The body is rich HTML
-// holding {{id}} tokens, and the rules here mirror the server's (lms/fill_blank.py
+// holding [[n]] tokens, and the rules here mirror the server's (lms/fill_blank.py
 // and LMS Question's blank validation) so the authoring UI never offers a save
 // the server would refuse.
 
-// Same pattern as the server's BLANK_TOKEN. A fresh RegExp per call, because a
+// Same pattern as the server's BLANK_TOKEN: ASCII digits only, so full-width
+// digits are not markers on either side. A fresh RegExp per call, because a
 // shared /g regex carries lastIndex between uses.
-const TOKEN_SOURCE = String.raw`\{\{\s*([^{}\s]+)\s*\}\}`
+const TOKEN_SOURCE = String.raw`\[\[([0-9]+)\]\]`
 const tokenRegex = (): RegExp => new RegExp(TOKEN_SOURCE, 'g')
 
 export type BlankRow = {
@@ -39,7 +40,7 @@ export type TokenPart =
 	| { type: 'text'; value: string }
 	| { type: 'blank'; id: string }
 
-export const blankToken = (id: string | number): string => `{{${id}}}`
+export const blankToken = (id: string | number): string => `[[${id}]]`
 
 // Ids in order of first appearance, each once.
 export const extractBlankIds = (html?: string | null): string[] => {
@@ -50,7 +51,7 @@ export const extractBlankIds = (html?: string | null): string[] => {
 	return ids
 }
 
-// The smallest positive whole number no token uses yet, so deleting {{2}} and
+// The smallest positive whole number no token uses yet, so deleting [[2]] and
 // inserting again hands 2 back rather than climbing forever.
 export const nextBlankId = (used: Iterable<string>): string => {
 	const taken = new Set(Array.from(used, String))
@@ -110,9 +111,13 @@ export const totalBlankMarks = (blanks?: Partial<BlankRow>[] | null): number =>
 // keep what the author entered; rows for ids that went are dropped; a new id
 // starts with no answers and one mark. Returns the same array when nothing
 // changes, so a watcher that writes the result back does not loop.
+// `removed` is the owner's memory of dropped rows: a row that goes is put in it,
+// and an id that comes back takes its row out again, so deleting a marker by
+// mistake (or retyping it) does not cost the author its answers and marks.
 export const syncBlanks = (
 	blanks: BlankRow[] | null | undefined,
-	ids: string[]
+	ids: string[],
+	removed?: Map<string, BlankRow>
 ): BlankRow[] => {
 	const current = blanks ?? []
 	if (
@@ -121,13 +126,49 @@ export const syncBlanks = (
 	)
 		return current as BlankRow[]
 	const byId = new Map(current.map((row) => [row.blank_id, row]))
-	return ids.map(
-		(id) => byId.get(id) ?? { blank_id: id, answers: '', marks: 1 }
-	)
+	if (removed) {
+		for (const row of current)
+			if (!ids.includes(row.blank_id)) removed.set(row.blank_id, row)
+	}
+	return ids.map((id) => {
+		const kept = byId.get(id)
+		if (kept) return kept
+		const back = removed?.get(id)
+		if (back) {
+			removed?.delete(id)
+			return back
+		}
+		return { blank_id: id, answers: '', marks: 1 }
+	})
+}
+
+// Ids that appear in more than one marker. The learner would get two boxes
+// sharing one answer, so the author is asked to number them apart.
+export const duplicateBlankIds = (html?: string | null): string[] => {
+	const seen = new Set<string>()
+	const repeated: string[] = []
+	for (const match of (html ?? '').matchAll(tokenRegex())) {
+		if (seen.has(match[1]) && !repeated.includes(match[1]))
+			repeated.push(match[1])
+		seen.add(match[1])
+	}
+	return repeated
+}
+
+// A marker that looks right but is not one: full-width or corner brackets, or
+// full-width digits, as a Japanese IME produces them. Tags are stripped first so
+// markup never counts.
+const NEAR_MISS_SOURCE = String.raw`[\[［「『【]{2}\s*[0-9０-９]+\s*[\]］」』】]{2}`
+export const hasNearMissMarker = (html?: string | null): boolean => {
+	const text = (html ?? '').replace(/<[^>]*>/g, '')
+	for (const match of text.matchAll(new RegExp(NEAR_MISS_SOURCE, 'g'))) {
+		if (!new RegExp(`^${TOKEN_SOURCE}$`).test(match[0])) return true
+	}
+	return false
 }
 
 // The server's checks: at least one blank, the body's tokens and the rows name
-// the same ids, and every row is valid.
+// the same ids, and every row is valid. A marker used twice is refused here too.
 export const hasValidBlanks = (
 	html: string | null | undefined,
 	blanks: BlankRow[] | null | undefined
@@ -135,6 +176,7 @@ export const hasValidBlanks = (
 	const ids = extractBlankIds(html)
 	const rows = blanks ?? []
 	if (!ids.length || rows.length !== ids.length) return false
+	if (duplicateBlankIds(html).length) return false
 	const rowIds = new Set(rows.map((row) => row.blank_id))
 	if (rowIds.size !== rows.length) return false
 	if (!ids.every((id) => rowIds.has(id))) return false
@@ -168,6 +210,13 @@ export const hasFillBlankAnswer = (
 	Object.values(answers ?? {}).some(
 		(value) => typeof value === 'string' && value.trim() !== ''
 	)
+
+// How many of the blanks have text, to tell a question left half done from one
+// finished.
+export const countFilledBlanks = (
+	blankIds: string[],
+	answers?: Record<string, string> | null
+): number => blankIds.filter((id) => (answers?.[id] ?? '').trim() !== '').length
 
 // {"1": "text", ...} for every blank the question has, so the server sees an
 // empty string for a blank left alone rather than a missing key.

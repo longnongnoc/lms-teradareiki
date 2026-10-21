@@ -324,14 +324,17 @@
 								/>
 							</div>
 							<span class="shrink-0 text-sm text-ink-gray-6">
-								{{ question.marks }}
-								{{ question.marks == 1 ? __('Mark') : __('Marks') }}
+								{{
+									question.marks == 1
+										? __('1 mark')
+										: __('{0} marks').format(question.marks)
+								}}
 							</span>
 						</div>
 
 						<div class="space-y-3 p-3.5">
 							<div class="space-y-1">
-								<div class="text-sm text-ink-gray-6">
+								<div :id="instructionId" class="text-sm text-ink-gray-6">
 									{{
 										questionDetails.data.type == 'Open Ended'
 											? __('Written response')
@@ -339,15 +342,22 @@
 									}}
 								</div>
 								<QuizQuestionBody
+									ref="questionBody"
 									:id="questionTextId"
-									class="text-p-base font-semibold text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+									class="text-p-base text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+									:class="
+										isFillBlank ? 'leading-10 sm:leading-9' : 'font-semibold'
+									"
 									:html="questionDetails.data.question"
 									:fillBlank="isFillBlank"
+									:describedby="instructionId"
+									:flagEmpty="emptyBlanksFlagged"
 									:review="!!fillBlankGrade"
 									:disabled="!!showAnswers.length"
 									:answers="blankAnswers"
 									:results="fillBlankResultMap"
 									@update:blank="setBlankAnswer"
+									@last-blank-enter="focusPrimaryAction"
 								/>
 							</div>
 
@@ -409,7 +419,7 @@
 											>
 												<template v-if="showAnswers[index - 1] == 1">
 													<span
-														class="lucide-check-circle size-4 shrink-0 text-ink-green-4"
+														class="lucide-check-circle size-4 shrink-0 text-ink-green-6"
 														aria-hidden="true"
 													/>
 													<span class="sr-only">
@@ -418,7 +428,7 @@
 												</template>
 												<template v-else-if="showAnswers[index - 1] == 2">
 													<span
-														class="lucide-minus-circle size-4 shrink-0 text-ink-green-4"
+														class="lucide-minus-circle size-4 shrink-0 text-ink-green-6"
 														aria-hidden="true"
 													/>
 													<span class="sr-only">{{
@@ -465,11 +475,24 @@
 								v-else-if="questionDetails.data.type == 'Fill Blank'"
 								class="space-y-3"
 							>
+								<p
+									v-if="emptyBlankWarning"
+									role="alert"
+									data-testid="empty-blank-warning"
+									class="flex items-start gap-1.5 text-p-sm text-ink-amber-8"
+								>
+									<span
+										class="lucide-triangle-alert mt-0.5 size-4 shrink-0"
+										aria-hidden="true"
+									/>
+									{{ __('Fill in every blank before checking') }}
+								</p>
 								<div role="status" class="empty:absolute">
 									<FeedbackBanner
 										v-if="fillBlankGrade && quiz.data.show_answers"
 										data-testid="quiz-feedback"
 										:correct="!!fillBlankGrade.is_correct"
+										:partial="fillBlankPartial"
 									>
 										{{ fillBlankFeedback }}
 									</FeedbackBanner>
@@ -523,7 +546,7 @@
 										{{ __('Marked by your instructor') }}
 									</span>
 								</div>
-								<div class="flex flex-1 justify-end gap-2">
+								<div ref="actionsRef" class="flex flex-1 justify-end gap-2">
 									<Button
 										v-if="!quiz.data.show_answers && activeQuestion > 1"
 										@click="switchQuestion(activeQuestion - 1)"
@@ -537,6 +560,7 @@
 											questionDetails.data.type != 'Open Ended'
 										"
 										variant="solid"
+										:loading="checking"
 										@click="checkAnswer()"
 									>
 										<span>{{ __('Check') }}</span>
@@ -668,7 +692,7 @@
 							</span>
 						</div>
 						<QuizQuestionBody
-							class="text-p-base leading-8 text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+							class="text-p-base leading-10 text-ink-gray-9 break-words sm:leading-9 [&_img]:h-auto [&_img]:max-w-full"
 							review
 							fillBlank
 							:html="item.question"
@@ -714,12 +738,7 @@
 					v-for="index in questions.length"
 					:key="index"
 					type="button"
-					:aria-label="
-						(attemptedQuestions.includes(index)
-							? __('Question {0}, answered')
-							: __('Question {0}, not answered')
-						).format(index)
-					"
+					:aria-label="navLabel(index)"
 					:aria-current="activeQuestion == index ? 'step' : undefined"
 					:title="questions[index - 1]?.group || undefined"
 					@click="switchQuestion(index)"
@@ -727,15 +746,24 @@
 					:class="{
 						'bg-surface-gray-7 text-ink-base font-medium':
 							activeQuestion == index,
+						'bg-surface-amber-2 text-ink-amber-8':
+							activeQuestion != index && isPartlyFilled(index),
 						'bg-surface-blue-2 text-ink-blue-5':
-							activeQuestion != index && attemptedQuestions.includes(index),
+							activeQuestion != index &&
+							attemptedQuestions.includes(index) &&
+							!isPartlyFilled(index),
 						'bg-surface-gray-3':
 							activeQuestion != index && !attemptedQuestions.includes(index),
 					}"
 				>
 					{{ index }}
+					<CircleDashed
+						v-if="activeQuestion != index && isPartlyFilled(index)"
+						class="absolute -top-1.5 -end-1.5 size-4 stroke-1.5 shrink-0 rounded-full bg-surface-base text-ink-amber-8 fill-none"
+						aria-hidden="true"
+					/>
 					<CircleCheck
-						v-if="attemptedQuestions.includes(index)"
+						v-else-if="attemptedQuestions.includes(index)"
 						class="absolute -top-1.5 -end-1.5 size-4 stroke-1.5 shrink-0 rounded-full bg-surface-base text-ink-green-8 fill-none"
 						aria-hidden="true"
 					/>
@@ -816,6 +844,17 @@
 				</p>
 				<p v-else class="text-base text-ink-gray-6 leading-5">
 					{{ __('All questions have been attempted.') }}
+				</p>
+				<p
+					v-if="emptyBlankCount > 0"
+					data-testid="empty-blanks-note"
+					class="text-base text-ink-amber-8 leading-5"
+				>
+					{{
+						emptyBlankCount == 1
+							? __('1 blank is still empty')
+							: __('{0} blanks are still empty').format(emptyBlankCount)
+					}}
 				</p>
 				<div class="space-y-1.5">
 					<div
@@ -899,7 +938,7 @@ import {
 	toast,
 } from 'frappe-ui'
 import type { FrappeResourceError } from 'frappe-ui'
-import { CircleCheck } from 'lucide-vue-next'
+import { CircleCheck, CircleDashed } from 'lucide-vue-next'
 import {
 	computed,
 	inject,
@@ -931,7 +970,11 @@ import AssessmentCardHeader from '@/components/Assessment/AssessmentCardHeader.v
 import OptionRow from '@/components/Assessment/OptionRow.vue'
 import FeedbackBanner from '@/components/Assessment/FeedbackBanner.vue'
 import QuizStats from '@/components/Assessment/QuizStats.vue'
-import { attemptsLeftLabel, formatQuizSubtitle } from '@/utils/quizSummary'
+import {
+	attemptsLeftLabel,
+	formatQuizSubtitle,
+	joinSentences,
+} from '@/utils/quizSummary'
 import { orderQuizQuestions } from '@/utils/quizSections'
 import { safeUrl } from '@/utils/safeUrl'
 import {
@@ -942,6 +985,7 @@ import {
 	slotForKey,
 } from '@/utils/optionKey'
 import {
+	countFilledBlanks,
 	hasFillBlankAnswer,
 	indexBlankResults,
 	parseFillBlankAnswer,
@@ -1156,6 +1200,11 @@ const questionsByName = ref<Record<string, QuizQuestionDetails>>({})
 // Native radios group by name across the page, and a lesson can show two quizzes.
 const optionGroup = useId()
 const questionTextId = useId()
+const instructionId = useId()
+// Both sit inside the question loop, so Vue fills them as arrays; only the open
+// question renders, and the last entry is the live one.
+const questionBody = ref<InstanceType<typeof QuizQuestionBody>[]>([])
+const actionsRef = ref<HTMLElement[]>([])
 const summaryHeading = ref<HTMLElement | null>(null)
 
 const quiz = createResource<QuizDetails>({
@@ -1311,11 +1360,19 @@ const introTips = computed(() => {
 		)
 	}
 	if (quiz.data.enable_negative_marking) {
+		const deduction = __('Wrong answers deduct {0} {1}.').format(
+			quiz.data.marks_to_cut,
+			quiz.data.marks_to_cut == 1 ? __('mark') : __('marks')
+		)
 		tips.push(
-			__('Wrong answers deduct {0} {1}.').format(
-				quiz.data.marks_to_cut,
-				quiz.data.marks_to_cut == 1 ? __('mark') : __('marks')
-			)
+			hasFillBlankQuestions.value
+				? joinSentences(
+						deduction,
+						__(
+							'Fill in the Blanks questions lose marks only when every blank is wrong.'
+						)
+				  )
+				: deduction
 		)
 	}
 	return tips
@@ -1444,6 +1501,7 @@ watch(activeQuestion, (value) => {
 	questionDetails.data = questionsByName.value[currentQuestion.value] || null
 	blankAnswers.value = {}
 	fillBlankGrade.value = null
+	emptyBlanksFlagged.value = false
 	if (!quiz.data?.show_answers) {
 		loadSavedAnswers()
 	}
@@ -1522,6 +1580,7 @@ const startQuiz = () => {
 	activeQuestion.value = 1
 	attemptStartedAt = Date.now()
 	localStorage.removeItem(quiz.data.title)
+	savedAnswersVersion.value++
 	// Neither in an author preview. Nothing may be submitted there, so a countdown
 	// would reach zero with no way to end the attempt and the camera would stay on
 	// with it, and a violation cap would do the same.
@@ -1583,15 +1642,107 @@ const setBlankAnswer = (id: string, value: string): void => {
 	blankAnswers.value = { ...blankAnswers.value, [id]: value }
 }
 
+const blankIdsOf = (
+	details: QuizQuestionDetails | null | undefined
+): string[] => (details?.blanks ?? []).map((blank) => blank.blank_id)
+
+// localStorage is not reactive, so whatever writes the saved answers bumps this.
+const savedAnswersVersion = ref(0)
+
+// Filled and total blanks of each Fill Blank question, by question number. The
+// open question reads what is typed now, the others what was saved on leaving.
+const fillBlankProgress = computed(() => {
+	void savedAnswersVersion.value
+	const progress: Record<number, { filled: number; total: number }> = {}
+	if (!hasFillBlankQuestions.value) return progress
+	const saved = readSavedAnswers() ?? []
+	questions.value.forEach((row, i) => {
+		const details = questionsByName.value[row.question]
+		if (details?.type !== 'Fill Blank') return
+		const ids = blankIdsOf(details)
+		const answers =
+			i + 1 === activeQuestion.value
+				? blankAnswers.value
+				: parseFillBlankAnswer(
+						saved.find((entry) => entry.question_name == row.question)
+							?.answer?.[0]
+				  )
+		progress[i + 1] = {
+			filled: countFilledBlanks(ids, answers),
+			total: ids.length,
+		}
+	})
+	return progress
+})
+
+const isPartlyFilled = (number: number): boolean => {
+	const progress = fillBlankProgress.value[number]
+	return !!progress && progress.filled > 0 && progress.filled < progress.total
+}
+
+const navLabel = (number: number): string => {
+	const progress = fillBlankProgress.value[number]
+	if (progress && isPartlyFilled(number))
+		return __('Question {0}, {1} of {2} blanks filled').format(
+			number,
+			progress.filled,
+			progress.total
+		)
+	return (
+		attemptedQuestions.value.includes(number)
+			? __('Question {0}, answered')
+			: __('Question {0}, not answered')
+	).format(number)
+}
+
+// Blanks left empty in questions that were started. A question never touched is
+// already counted as unattempted, so it is not counted twice.
+const emptyBlankCount = computed(() =>
+	Object.values(fillBlankProgress.value).reduce(
+		(sum, { filled, total }) =>
+			filled > 0 && filled < total ? sum + total - filled : sum,
+		0
+	)
+)
+
+// Check with an empty blank would lock the question with that blank marked wrong,
+// so it stops, flags the empty inputs and says why.
+const emptyBlanksFlagged = ref(false)
+const currentEmptyBlanks = computed(() => {
+	const ids = blankIdsOf(questionDetails.data)
+	return ids.length - countFilledBlanks(ids, blankAnswers.value)
+})
+const emptyBlankWarning = computed(
+	() => emptyBlanksFlagged.value && currentEmptyBlanks.value > 0
+)
+
+// Enter on the last blank carries on to the main button, the way it moves between blanks.
+const focusPrimaryAction = (): void => {
+	const buttons =
+		actionsRef.value[actionsRef.value.length - 1]?.querySelectorAll('button')
+	buttons?.[buttons.length - 1]?.focus()
+}
+
 const fillBlankResultMap = computed(() =>
 	fillBlankGrade.value ? indexBlankResults(fillBlankGrade.value.results) : null
 )
 
+// Some of the marks but not all: neither a pass nor a fail.
+const fillBlankPartial = computed(() => {
+	const grade = fillBlankGrade.value
+	return !!grade && !grade.is_correct && grade.marks > 0
+})
+
 const fillBlankFeedback = computed(() => {
 	const grade = fillBlankGrade.value
 	if (!grade) return ''
+	const verdict = grade.is_correct
+		? __('Correct')
+		: fillBlankPartial.value
+		? __('Partly correct')
+		: __('Incorrect')
 	return [
-		grade.is_correct ? __('Correct') : __('Incorrect'),
+		verdict,
 		__('{0} of {1} marks').format(grade.marks, grade.marks_out_of),
 	].join(', ')
 })
@@ -1611,6 +1762,7 @@ const forgetClearedFillBlank = (): void => {
 			saved.filter((entry) => entry.question_name != currentQuestion.value)
 		)
 	)
+	savedAnswersVersion.value++
 }
 
 // Per-blank results of the submission just made, fetched only when the quiz has
@@ -1800,10 +1952,20 @@ const getAnswers = (): Answer[] => {
 	return answers
 }
 
+const checking = ref(false)
+
 const checkAnswer = (): void => {
+	if (checking.value) return
 	const answers = getAnswers()
 	const details = questionDetails.data
 	if (!quiz.data || !details) return
+	if (details.type == 'Fill Blank' && currentEmptyBlanks.value > 0) {
+		emptyBlanksFlagged.value = true
+		nextTick(() =>
+			questionBody.value[questionBody.value.length - 1]?.focusFirstEmpty()
+		)
+		return
+	}
 	if (!answers.length) {
 		toast.warning(
 			details.type == 'Fill Blank'
@@ -1813,6 +1975,7 @@ const checkAnswer = (): void => {
 		return
 	}
 
+	checking.value = true
 	createResource({
 		url: 'lms.lms.doctype.lms_quiz.lms_quiz.check_answer',
 		params: {
@@ -1823,6 +1986,7 @@ const checkAnswer = (): void => {
 		},
 		auto: true,
 		onSuccess(data: AnswerVerdict[] | AnswerVerdict) {
+			checking.value = false
 			if (details.type == 'Choices' && Array.isArray(data)) {
 				selectedOptions.value.forEach((option, index) => {
 					if (option) {
@@ -1844,6 +2008,13 @@ const checkAnswer = (): void => {
 			if (!quiz.data?.show_answers) {
 				resetQuestion()
 			}
+		},
+		onError(err: FrappeResourceError) {
+			checking.value = false
+			toast.error(
+				err?.messages?.[0] ||
+					__('Could not check the answer. Please try again.')
+			)
 		},
 	})
 }
@@ -1868,6 +2039,7 @@ const addToLocalStorage = (): void => {
 		quizData = [questionData]
 	}
 	localStorage.setItem(quiz.data.title, JSON.stringify(quizData))
+	savedAnswersVersion.value++
 }
 
 const nextQuestion = (): void => {
@@ -1891,6 +2063,7 @@ const resetQuestion = () => {
 	possibleAnswer.value = null
 	blankAnswers.value = {}
 	fillBlankGrade.value = null
+	emptyBlanksFlagged.value = false
 }
 
 // One promise for the submit in flight, from the moment it is asked for (submitQuiz
@@ -1991,6 +2164,7 @@ const resetQuiz = () => {
 	possibleAnswer.value = null
 	blankAnswers.value = {}
 	fillBlankGrade.value = null
+	emptyBlanksFlagged.value = false
 	fillBlankReview.reset()
 	attemptedQuestions.value = []
 	reviewQuestions.value = []

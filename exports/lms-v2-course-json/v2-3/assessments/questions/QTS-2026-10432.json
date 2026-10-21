@@ -6,7 +6,7 @@
     "modified_by": "Administrator",
     "docstatus": 0,
     "idx": 0,
-    "question": "<p><small>\u3010\u2461 \u5de5\u5177\u30fb\u6750\u6599\u540d\u306e\u7406\u89e3\uff0830\u70b9\uff09\u3011</small></p><table><tbody><tr><td><p><b>2.3 {{1}}\u7ba1\uff08\u786c\u8cea\u5869\u5316\u30d3\u30cb\u30eb\u96fb\u7dda\u7ba1\uff09</b></p><p>\u7279\u5fb4</p><p>\u30fb\u786c\u304f\u3066\u76f4\u7dda\u6027\u304c\u9ad8\u3044</p><p>\u30fb{{2}}\u3067\u3082\u4f7f\u7528\u53ef\u80fd</p><p>\u4e3b\u306a\u7528\u9014</p><p>\u30fb\u9732\u51fa\u914d\u7ba1\u3001\u58c1\u9762\u914d\u7ba1\u3001\u5c4b\u5916\u914d\u7dda</p></td><td><img src=\"/files/c03-x2-4.png\" style=\"max-width:200px;height:auto\"></td></tr></tbody></table>",
+    "question": "<p><small>\u3010\u2461 \u5de5\u5177\u30fb\u6750\u6599\u540d\u306e\u7406\u89e3\uff0830\u70b9\uff09\u3011</small></p><table><tbody><tr><td><p><b>2.3 [[1]]\u7ba1\uff08\u786c\u8cea\u5869\u5316\u30d3\u30cb\u30eb\u96fb\u7dda\u7ba1\uff09</b></p><p>\u7279\u5fb4</p><p>\u30fb\u786c\u304f\u3066\u76f4\u7dda\u6027\u304c\u9ad8\u3044</p><p>\u30fb[[2]]\u3067\u3082\u4f7f\u7528\u53ef\u80fd</p><p>\u4e3b\u306a\u7528\u9014</p><p>\u30fb\u9732\u51fa\u914d\u7ba1\u3001\u58c1\u9762\u914d\u7ba1\u3001\u5c4b\u5916\u914d\u7dda</p></td><td><img src=\"/files/c03-x2-4.png\" style=\"max-width:200px;height:auto\"></td></tr></tbody></table>",
     "type": "Fill Blank",
     "multiple": 0,
     "marks": 2,

@@ -1,5 +1,15 @@
 import type { QuizQuestionType } from '@/types/quiz'
 
+// Joins translated sentences into one line. A sentence that ends in a
+// full-width stop (Japanese, Chinese) must not be followed by an ASCII space.
+export const joinSentences = (...parts: string[]): string =>
+	parts
+		.filter((part) => part)
+		.reduce((text, part) => {
+			if (!text) return part
+			return text + (/[。！？]$/.test(text) ? '' : ' ') + part
+		}, '')
+
 // The quiz card's header line, shared by the learner card and the lesson
 // editor's preview so the two always agree.
 export const formatQuizSubtitle = (

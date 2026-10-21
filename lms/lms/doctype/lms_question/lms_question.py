@@ -12,7 +12,12 @@ from frappe.rate_limiter import rate_limit
 from frappe.utils import cint, escape_html, flt, get_url
 
 from lms.lms.doctype.lms_content_author.lms_content_author import AuthoredDocument
-from lms.lms.fill_blank import extract_blank_ids, parse_accepted_answers
+from lms.lms.fill_blank import (
+	BLANK_ID,
+	empty_accepted_answers,
+	extract_blank_ids,
+	parse_accepted_answers,
+)
 from lms.lms.permissions import can_access_quiz, is_content_author
 from lms.lms.question_media import (
 	MAX_IMAGE_BYTES,
@@ -190,8 +195,21 @@ def validate_fill_blanks(question):
 		blank_id = (row.blank_id or "").strip()
 		if not blank_id:
 			frappe.throw(_("Row {0}: Blank ID is required.").format(row.idx))
+		if not BLANK_ID.fullmatch(blank_id):
+			frappe.throw(
+				_("Row {0}: Blank ID {1} must be a number, such as 1 or 2.").format(
+					row.idx, frappe.bold(blank_id)
+				)
+			)
 		if blank_id in blank_ids:
 			frappe.throw(_("Row {0}: Blank ID {1} is duplicated.").format(row.idx, frappe.bold(blank_id)))
+		empty_lines = empty_accepted_answers(row.answers)
+		if empty_lines:
+			frappe.throw(
+				_(
+					"Row {0}: Accepted answer {1} for blank {2} is empty once spaces and punctuation are ignored."
+				).format(row.idx, frappe.bold(escape_html(empty_lines[0])), frappe.bold(blank_id))
+			)
 		if not parse_accepted_answers(row.answers):
 			frappe.throw(
 				_("Row {0}: Add at least one accepted answer for blank {1}.").format(

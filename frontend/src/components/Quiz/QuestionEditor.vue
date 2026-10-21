@@ -79,6 +79,7 @@
 	</div>
 
 	<div
+		ref="bodyRef"
 		class="space-y-2"
 		:class="[padded ? 'px-4 pb-4' : 'pt-4', fillsHeight ? COLUMN : '']"
 	>
@@ -107,15 +108,42 @@
 					:minHeight="fillsHeight ? '6rem' : '5rem'"
 				/>
 			</div>
-			<div
-				v-if="isFillBlank"
-				class="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1"
-			>
-				<Button variant="outline" @mousedown.prevent @click="insertBlank">
-					<template #prefix><span class="lucide-plus size-4" /></template>
-					{{ __('Insert blank') }}
-				</Button>
-				<span class="text-p-sm text-ink-gray-6">{{ blankHint }}</span>
+			<div v-if="isFillBlank" class="space-y-1.5 pt-1">
+				<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+					<Button variant="outline" @mousedown.prevent @click="insertBlank">
+						<template #prefix><span class="lucide-plus size-4" /></template>
+						{{ __('Insert blank') }}
+					</Button>
+					<!-- With no blank yet the panel below already says how to add one. -->
+					<span v-if="hasBlankRows" class="text-p-sm text-ink-gray-6">{{
+						blankHint
+					}}</span>
+				</div>
+				<p
+					v-if="nearMissMarker"
+					data-testid="blank-near-miss"
+					class="flex items-start gap-1.5 text-p-sm text-ink-amber-8"
+				>
+					<span
+						class="lucide-triangle-alert mt-0.5 size-4 shrink-0"
+						aria-hidden="true"
+					/>
+					{{
+						__('Full-width ［［１］］ is not a blank marker. Use Insert blank.')
+					}}
+				</p>
+				<p
+					v-for="id in duplicateIds"
+					:key="id"
+					data-testid="blank-duplicate"
+					class="flex items-start gap-1.5 text-p-sm text-ink-red-5"
+				>
+					<span
+						class="lucide-circle-alert mt-0.5 size-4 shrink-0"
+						aria-hidden="true"
+					/>
+					{{ __('Marker [[{0}]] appears more than once').format(id) }}
+				</p>
 			</div>
 		</div>
 		<QuestionAnswers
@@ -142,7 +170,9 @@ import {
 } from '@/utils/quizQuestion'
 import {
 	blankToken,
+	duplicateBlankIds,
 	extractBlankIds,
+	hasNearMissMarker,
 	nextBlankId,
 	syncBlanks,
 	totalBlankMarks,
@@ -176,6 +206,7 @@ const COLUMN = 'flex flex-1 flex-col'
 const fillsHeight = computed(() => props.fillHeight)
 
 const questionEditorRef = ref(null)
+const bodyRef = ref(null)
 // Up here because resetTouched() runs from the owner, which can call it during setup.
 const editorTouched = ref(false)
 const questionEditorId = computed(() => `question-editor-${props.idPrefix}`)
@@ -205,13 +236,26 @@ const blankHint = computed(() =>
 	)
 )
 
+const hasBlankRows = computed(() => Boolean(props.question.blanks?.length))
+const duplicateIds = computed(() =>
+	isFillBlank.value ? duplicateBlankIds(props.question.question) : []
+)
+const nearMissMarker = computed(
+	() => isFillBlank.value && hasNearMissMarker(props.question.question)
+)
+
+// Rows whose marker was deleted, kept for this editing session by blank id. A
+// marker that comes back, by undo or by retyping, gets its answers and marks back.
+const removedBlanks = new Map()
+
 watch(
 	[isFillBlank, () => props.question.question],
 	() => {
 		if (!isFillBlank.value) return
 		const rows = syncBlanks(
 			props.question.blanks,
-			extractBlankIds(props.question.question)
+			extractBlankIds(props.question.question),
+			removedBlanks
 		)
 		if (rows !== props.question.blanks) props.question.blanks = rows
 	},
@@ -300,27 +344,33 @@ const cancelMarks = () => {
 	marksCustom.value = false
 }
 
+// A save the owner refused for invalid content. The question field first when it
+// is what is wrong, else the first control marked invalid.
+const focusFirstInvalid = () => {
+	const questionAtFault =
+		questionMissing.value ||
+		(isFillBlank.value &&
+			(!extractBlankIds(props.question.question).length ||
+				duplicateIds.value.length > 0))
+	if (questionAtFault) {
+		questionEditorRef.value?.focus()
+		return
+	}
+	const field = bodyRef.value?.querySelector('[aria-invalid="true"]')
+	field?.scrollIntoView?.({ block: 'center' })
+	field?.focus?.()
+}
+
 defineExpose({
 	// Freshly loaded or freshly saved, so the author has not had their turn at it yet.
 	resetTouched: () => {
 		editorTouched.value = false
+		// The rows it remembered belong to the text as it was before.
+		removedBlanks.clear()
 	},
+	focusFirstInvalid,
 	focus: () => {
 		questionEditorRef.value?.focus()
 	},
 })
 </script>
-
-<style scoped>
-/* Chrome renders number spinners at the inline end of the field, on top of the
-   "marks" suffix. Firefox needs the -moz property for the same reason. */
-.marks-input :deep(input[type='number'])::-webkit-outer-spin-button,
-.marks-input :deep(input[type='number'])::-webkit-inner-spin-button {
-	-webkit-appearance: none;
-	margin: 0;
-}
-.marks-input :deep(input[type='number']) {
-	-moz-appearance: textfield;
-	appearance: textfield;
-}
-</style>

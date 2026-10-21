@@ -38,7 +38,7 @@ from lms.lms.doctype.lms_question.lms_question import (
 	QUESTION_OPTION_IMAGE_FIELDS,
 	QUESTION_POSSIBILITY_FIELDS,
 )
-from lms.lms.fill_blank import grade_fill_blank, parse_submitted_answer
+from lms.lms.fill_blank import apply_negative_marking, grade_fill_blank, parse_submitted_answer
 from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
@@ -651,8 +651,12 @@ def process_results(results: list, quiz_details: dict):
 		result["question_type"] = question_details.type
 
 		if question_details.type == "Fill Blank":
-			graded = grade_fill_blank(
-				get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)
+			graded = apply_negative_marking(
+				grade_fill_blank(
+					get_fill_blanks(question_details.question), parse_submitted_answer(raw_answer)
+				),
+				quiz_details.enable_negative_marking,
+				quiz_details.marks_to_cut,
 			)
 			# One entry per real blank: stray keys from a forged payload are not stored.
 			result["answer"] = json.dumps(
@@ -837,7 +841,14 @@ def check_answer(quiz: str, question: str, question_type: str, answers: str):
 		if frappe.db.get_value("LMS Question", question, "type") != "Fill Blank":
 			frappe.throw(_("Invalid question type."), frappe.ValidationError)
 		submitted = parse_submitted_answer(answers[0] if answers else None)
-		return grade_fill_blank(get_fill_blanks(question), submitted)
+		quiz_details = frappe.db.get_value(
+			"LMS Quiz", quiz, ["enable_negative_marking", "marks_to_cut"], as_dict=True
+		)
+		return apply_negative_marking(
+			grade_fill_blank(get_fill_blanks(question), submitted),
+			quiz_details.enable_negative_marking,
+			quiz_details.marks_to_cut,
+		)
 
 	# A blank input answer (empty list, or the [null] the UI emits for an untouched field)
 	# scores as incorrect; coerce to "" so answers[0] can't IndexError / feed None onward.
@@ -882,7 +893,8 @@ def get_fill_blank_review(submission: str):
 
 	The accepted answers are only included for a viewer who may see the answer key: a
 	privileged role, or a quiz that reveals answers (show_answers). Anyone else gets each
-	blank's own answer, is_correct and marks.
+	blank's own answer, is_correct and marks. A learner gets nothing when the quiz has
+	Show Answer Review off; staff always get the review.
 	"""
 	if not isinstance(submission, str):
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
@@ -895,8 +907,13 @@ def get_fill_blank_review(submission: str):
 	):
 		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
 
-	show_answers = frappe.db.get_value("LMS Quiz", row.quiz, "show_answers")
-	reveal = bool(PRIVILEGED_ROLES & set(frappe.get_roles())) or bool(show_answers)
+	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
+	privileged = bool(PRIVILEGED_ROLES & set(frappe.get_roles()))
+	# Anyone past the own-submission check who is not the member is reading it as staff.
+	is_staff = privileged or row.member != frappe.session.user
+	if not is_staff and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+		return {}
+	reveal = privileged or bool(quiz.show_answers)
 
 	result_rows = frappe.get_all(
 		"LMS Quiz Result",
@@ -905,7 +922,7 @@ def get_fill_blank_review(submission: str):
 			"parenttype": "LMS Quiz Submission",
 			"question_type": "Fill Blank",
 		},
-		fields=["question_name", "answer"],
+		fields=["question_name", "answer", "marks"],
 		order_by="idx asc",
 	)
 
@@ -914,6 +931,9 @@ def get_fill_blank_review(submission: str):
 		graded = grade_fill_blank(
 			get_fill_blanks(result_row.question_name), parse_submitted_answer(result_row.answer)
 		)
+		# A deduction under negative marking is stored on the result, not derived from the blanks.
+		if cint(result_row.marks) < 0:
+			graded["marks"] = cint(result_row.marks)
 		if not reveal:
 			for item in graded["results"]:
 				item.pop("accepted", None)

@@ -6,7 +6,7 @@
     "modified_by": "Administrator",
     "docstatus": 0,
     "idx": 0,
-    "question": "<p><small>\u3010\u2460 \u96fb\u6c17\u306e\u57fa\u790e\uff0845\u70b9\uff09\u3011</small></p><p><b>1.1 \u96fb\u5727</b></p><p>\u30fb\u96fb\u6c17\u3092\u6d41\u3059{{1}}\u306e\u3053\u3068</p><p>\u30fb\u5358\u4f4d\uff1a{{2}}</p><p>\u30fb\u9ad8\u3044\u96fb\u5727\u307b\u3069{{3}}\u30ea\u30b9\u30af\u304c\u5897\u3059</p>",
+    "question": "<p><small>\u3010\u2460 \u96fb\u6c17\u306e\u57fa\u790e\uff0845\u70b9\uff09\u3011</small></p><p><b>1.1 \u96fb\u5727</b></p><p>\u30fb\u96fb\u6c17\u3092\u6d41\u3059[[1]]\u306e\u3053\u3068</p><p>\u30fb\u5358\u4f4d\uff1a[[2]]</p><p>\u30fb\u9ad8\u3044\u96fb\u5727\u307b\u3069[[3]]\u30ea\u30b9\u30af\u304c\u5897\u3059</p>",
     "type": "Fill Blank",
     "multiple": 0,
     "marks": 3,

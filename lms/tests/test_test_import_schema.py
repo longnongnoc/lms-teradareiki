@@ -5,6 +5,7 @@
 import copy
 import importlib.util
 import json
+import unittest
 from pathlib import Path
 
 _LMS_DIR = Path(__file__).resolve().parents[1] / "lms"
@@ -33,7 +34,7 @@ def _doc(*questions, **test_fields):
 	return {"tests": [test]}
 
 
-def _fill(body="<p>{{1}}</p>", blanks=None):
+def _fill(body="<p>[[1]]</p>", blanks=None):
 	return {
 		"type": "fill_blank",
 		"body": body,
@@ -55,7 +56,7 @@ def _has(errors, fragment):
 	return any(fragment in error for error in errors)
 
 
-class TestValidDocuments:
+class TestValidDocuments(unittest.TestCase):
 	def test_example_file_is_valid(self):
 		assert validate(_example()) == []
 
@@ -89,7 +90,7 @@ class TestValidDocuments:
 		assert normalize(doc)["tests"][0]["sections"][0]["questions"][0]["blanks"][0]["id"] == "1"
 
 
-class TestDocumentShape:
+class TestDocumentShape(unittest.TestCase):
 	def test_not_an_object(self):
 		assert _has(validate([]), "document")
 
@@ -104,7 +105,7 @@ class TestDocumentShape:
 		assert len(errors) >= 3
 
 
-class TestTestFields:
+class TestTestFields(unittest.TestCase):
 	def test_title_required_and_length(self):
 		assert _has(validate(_doc(_choice(), title="")), "tests[0].title: required")
 		assert _has(validate(_doc(_choice(), title="x" * 201)), "tests[0].title: at most 200")
@@ -141,7 +142,7 @@ class TestTestFields:
 		assert _has(validate(doc), "tests[1].title: duplicate of tests[0]")
 
 
-class TestSections:
+class TestSections(unittest.TestCase):
 	def test_sections_required(self):
 		doc = _doc(_choice())
 		doc["tests"][0]["sections"] = []
@@ -171,7 +172,7 @@ class TestSections:
 		assert _has(validate(doc), "sections[2].title: duplicate of sections[0]")
 
 
-class TestQuestions:
+class TestQuestions(unittest.TestCase):
 	def test_unknown_type(self):
 		errors = validate(_doc({"type": "essay", "text": "x"}))
 		assert _has(errors, "tests[0].sections[0].questions[0].type")
@@ -180,7 +181,7 @@ class TestQuestions:
 		doc = {"tests": [_doc(_choice())["tests"][0], _doc(_choice())["tests"][0]]}
 		doc["tests"][1]["title"] = "other"
 		doc["tests"][1]["sections"][0]["questions"] = [_choice()] * 4 + [
-			_fill(blanks=[{"id": "1", "answers": ["a"]}, {"id": "2", "answers": []}], body="{{1}}{{2}}")
+			_fill(blanks=[{"id": "1", "answers": ["a"]}, {"id": "2", "answers": []}], body="[[1]][[2]]")
 		]
 		errors = validate(doc)
 		assert "tests[1].sections[0].questions[4].blanks[1].answers: at least one answer" in errors
@@ -191,7 +192,7 @@ class TestQuestions:
 		assert validate(_doc(_choice(marks=3))) == []
 
 
-class TestChoice:
+class TestChoice(unittest.TestCase):
 	def test_text_required(self):
 		question = _choice()
 		question["text"] = " "
@@ -242,7 +243,7 @@ class TestChoice:
 		assert _has(validate(_doc(question)), "options[0].correct")
 
 
-class TestUserInput:
+class TestUserInput(unittest.TestCase):
 	def _q(self, answers):
 		return {"type": "user_input", "text": "<p>Q</p>", "answers": answers}
 
@@ -266,25 +267,38 @@ class TestUserInput:
 		]
 
 
-class TestFillBlank:
+class TestFillBlank(unittest.TestCase):
 	def test_matching_tokens_pass(self):
 		blanks = [{"id": "1", "answers": ["圧縮機"]}, {"id": "2", "answers": ["凝縮器"]}]
-		assert validate(_doc(_fill("<p>{{1}}と{{ 2 }}</p>", blanks))) == []
+		assert validate(_doc(_fill("<p>[[1]]と[[2]]</p>", blanks))) == []
 
 	def test_blank_without_token(self):
 		blanks = [{"id": "1", "answers": ["a"]}, {"id": "2", "answers": ["b"]}]
-		assert _has(validate(_doc(_fill("<p>{{1}}</p>", blanks))), "no {{id}} marker for blanks 2")
+		assert _has(validate(_doc(_fill("<p>[[1]]</p>", blanks))), "no [[n]] marker for blanks 2")
 
 	def test_token_without_blank(self):
-		assert _has(validate(_doc(_fill("<p>{{1}}{{7}}</p>"))), "markers without a blank 7")
+		assert _has(validate(_doc(_fill("<p>[[1]][[7]]</p>"))), "markers without a blank 7")
 
 	def test_duplicate_blank_ids(self):
 		blanks = [{"id": "1", "answers": ["a"]}, {"id": "1", "answers": ["b"]}]
-		assert _has(validate(_doc(_fill("{{1}}", blanks))), "blanks[1].id: duplicate blank id")
+		assert _has(validate(_doc(_fill("[[1]]", blanks))), "blanks[1].id: duplicate blank id")
 
-	def test_blank_id_with_space_or_brace(self):
-		blanks = [{"id": "a b", "answers": ["a"]}]
-		assert _has(validate(_doc(_fill("x", blanks))), "blanks[0].id: cannot contain")
+	def test_blank_id_must_be_ascii_digits(self):
+		for bad in ("a b", "a", "1a", "-1", "1.5", "１", "{1}", "[1]"):
+			blanks = [{"id": bad, "answers": ["a"]}]
+			assert _has(validate(_doc(_fill("x", blanks))), "blanks[0].id: digits only"), bad
+
+	def test_old_brace_markers_are_not_markers(self):
+		blanks = [{"id": "1", "answers": ["a"]}]
+		assert _has(validate(_doc(_fill("<p>{{1}}</p>", blanks))), "no [[n]] marker for blanks 1")
+
+	def test_full_width_digit_markers_are_not_markers(self):
+		blanks = [{"id": "1", "answers": ["a"]}]
+		assert _has(validate(_doc(_fill("<p>[[１]]</p>", blanks))), "no [[n]] marker for blanks 1")
+
+	def test_non_contiguous_ids_pass(self):
+		blanks = [{"id": "2", "answers": ["a"]}, {"id": "5", "answers": ["b"]}]
+		assert validate(_doc(_fill("<p>[[5]] [[2]]</p>", blanks))) == []
 
 	def test_blank_marks_whole_number_at_least_one(self):
 		for bad in (0, 1.5, -1, "1"):
@@ -300,7 +314,7 @@ class TestFillBlank:
 		assert _has(validate(_doc(_fill(body=" "))), "questions[0].body: required")
 
 	def test_html_table_and_img_are_allowed(self):
-		body = '<table><tr><td>{{1}}</td></tr></table><img src="/files/x.png">'
+		body = '<table><tr><td>[[1]]</td></tr></table><img src="/files/x.png">'
 		assert validate(_doc(_fill(body))) == []
 
 	def test_normalize_trims_and_defaults_marks(self):
@@ -309,9 +323,10 @@ class TestFillBlank:
 		assert out["blanks"] == [{"id": "1", "answers": ["圧縮機", "コンプレッサー"], "marks": 1}]
 
 
-def test_validate_does_not_mutate_input():
-	doc = _example()
-	before = copy.deepcopy(doc)
-	validate(doc)
-	normalize(doc)
-	assert doc == before
+class TestInputIsNotMutated(unittest.TestCase):
+	def test_validate_does_not_mutate_input(self):
+		doc = _example()
+		before = copy.deepcopy(doc)
+		validate(doc)
+		normalize(doc)
+		assert doc == before
