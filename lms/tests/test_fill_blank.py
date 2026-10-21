@@ -1,13 +1,13 @@
 # Copyright (c) 2026, FOSS United and contributors
 # See license.txt
-"""Unit tests for the Fill Blank grading rules. No frappe, no bench: run with pytest alone."""
+"""Unit tests for the Fill Blank grading rules. No frappe, no bench: run with pytest or unittest alone."""
 
 import importlib.util
 import json
 import sys
+import unittest
 from pathlib import Path
-
-import pytest
+from unittest import mock
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "lms" / "fill_blank.py"
 _spec = importlib.util.spec_from_file_location("lms_fill_blank_under_test", _MODULE_PATH)
@@ -25,17 +25,16 @@ parse_submitted_answer = fill_blank.parse_submitted_answer
 clean_answer_text = fill_blank.clean_answer_text
 
 
-needs_sudachi = pytest.mark.skipif(
-	fill_blank._get_sudachi() is None, reason="SudachiPy and its dictionary are not installed"
+needs_sudachi = unittest.skipIf(
+	fill_blank._get_sudachi() is None, "SudachiPy and its dictionary are not installed"
 )
 
 
-@pytest.fixture(autouse=True)
-def _fresh_morpheme_cache():
-	"""The morpheme step caches per text, so a result made with a stubbed tokenizer must not leak."""
-	fill_blank._sudachi_normalized_form.cache_clear()
-	yield
-	fill_blank._sudachi_normalized_form.cache_clear()
+class FillBlankTestCase(unittest.TestCase):
+	def setUp(self):
+		# The morpheme step caches per text, so a result made with a stubbed tokenizer must not leak.
+		fill_blank._sudachi_normalized_form.cache_clear()
+		self.addCleanup(fill_blank._sudachi_normalized_form.cache_clear)
 
 
 def _same(first, second):
@@ -46,10 +45,18 @@ def _same_morphemes(first, second):
 	return normalize_answer_morphemes(first) == normalize_answer_morphemes(second)
 
 
-def _without_sudachi(monkeypatch):
-	monkeypatch.setitem(sys.modules, "sudachipy", None)
-	monkeypatch.setattr(fill_blank, "_sudachi", None)
-	monkeypatch.setattr(fill_blank, "_sudachi_loaded", False)
+def _patch(test, target, name, value):
+	patcher = mock.patch.object(target, name, value)
+	patcher.start()
+	test.addCleanup(patcher.stop)
+
+
+def _without_sudachi(test):
+	patcher = mock.patch.dict(sys.modules, {"sudachipy": None})
+	patcher.start()
+	test.addCleanup(patcher.stop)
+	_patch(test, fill_blank, "_sudachi", None)
+	_patch(test, fill_blank, "_sudachi_loaded", False)
 
 
 def _blank(blank_id, answers, marks=1):
@@ -60,7 +67,7 @@ def _grade_one(accepted, answer):
 	return grade_fill_blank([_blank("1", accepted)], {"1": answer})["results"][0]["is_correct"]
 
 
-class TestNormalizeAnswer:
+class TestNormalizeAnswer(FillBlankTestCase):
 	def test_none_is_empty(self):
 		assert normalize_answer(None) == ""
 
@@ -205,27 +212,27 @@ class TestNormalizeAnswer:
 		assert normalize_answer_morphemes("R410A") == "r410a"
 		assert normalize_answer_morphemes("heat pump") == "heat pump"
 
-	def test_morpheme_key_without_sudachi_is_the_plain_key_and_logged_once(self, monkeypatch):
-		_without_sudachi(monkeypatch)
+	def test_morpheme_key_without_sudachi_is_the_plain_key_and_logged_once(self):
+		_without_sudachi(self)
 		logged = []
-		monkeypatch.setattr(fill_blank, "_log_sudachi_unavailable", logged.append)
+		_patch(self, fill_blank, "_log_sudachi_unavailable", logged.append)
 		for text in ("取付け", "ネジ", "冷凍 サイクル", "R-410A"):
 			assert normalize_answer_morphemes(text) == normalize_answer(text)
 		assert normalize_answer("ネジ") == "ねじ"
 		assert normalize_answer("冷凍 サイクル") == "冷凍さいくる"
 		assert len(logged) == 1
 
-	def test_morphology_error_on_one_text_falls_back_to_that_text(self, monkeypatch):
+	def test_morphology_error_on_one_text_falls_back_to_that_text(self):
 		class Broken:
 			def tokenize(self, text, mode):
 				raise RuntimeError("input too long")
 
-		monkeypatch.setattr(fill_blank, "_sudachi", (Broken(), None))
-		monkeypatch.setattr(fill_blank, "_sudachi_loaded", True)
+		_patch(self, fill_blank, "_sudachi", (Broken(), None))
+		_patch(self, fill_blank, "_sudachi_loaded", True)
 		assert normalize_answer_morphemes("取付け") == normalize_answer("取付け")
 
 
-class TestParseAcceptedAnswers:
+class TestParseAcceptedAnswers(FillBlankTestCase):
 	def test_one_per_line_normalized(self):
 		assert parse_accepted_answers("Compressor\n  COMPRESSOR  \n圧縮機\r\nＡＢＣ") == [
 			"compressor",
@@ -250,7 +257,7 @@ class TestParseAcceptedAnswers:
 		assert parse_accepted_answers("。\n-\n圧縮機") == ["圧縮機"]
 
 
-class TestEmptyAcceptedAnswers:
+class TestEmptyAcceptedAnswers(FillBlankTestCase):
 	def test_lists_lines_that_compare_as_nothing(self):
 		assert empty_accepted_answers("圧縮機\n。\n - . \n・「」") == ["。", "- .", "・「」"]
 
@@ -262,7 +269,7 @@ class TestEmptyAcceptedAnswers:
 		assert empty_accepted_answers(None) == []
 
 
-class TestExtractBlankIds:
+class TestExtractBlankIds(FillBlankTestCase):
 	def test_order_and_dedupe(self):
 		html = "<p>[[2]] then [[1]] then [[2]] and [[3]]</p>"
 		assert extract_blank_ids(html) == ["2", "1", "3"]
@@ -287,7 +294,7 @@ class TestExtractBlankIds:
 		assert extract_blank_ids(None) == []
 
 
-class TestGradeFillBlank:
+class TestGradeFillBlank(FillBlankTestCase):
 	def test_multiple_accepted_answers_one_per_line(self):
 		accepted = "凝縮器\nコンデンサ\ncondenser"
 		assert _grade_one(accepted, "Condenser")
@@ -371,7 +378,7 @@ class TestGradeFillBlank:
 		assert len(graded["results"]) == 1
 
 
-class TestDualKeyMatching:
+class TestDualKeyMatching(FillBlankTestCase):
 	def test_hiragana_spelling_of_a_katakana_answer_is_correct(self):
 		assert _grade_one("ガス", "がす")
 		assert _grade_one("コンデンサー", "こんでんさー")
@@ -392,9 +399,9 @@ class TestDualKeyMatching:
 		assert not _grade_one("機関", "期間")
 		assert not _grade_one("機関", "器官")
 
-	def test_without_sudachi_okurigana_variants_do_not_match_but_kana_does(self, monkeypatch):
-		_without_sudachi(monkeypatch)
-		monkeypatch.setattr(fill_blank, "_log_sudachi_unavailable", lambda error: None)
+	def test_without_sudachi_okurigana_variants_do_not_match_but_kana_does(self):
+		_without_sudachi(self)
+		_patch(self, fill_blank, "_log_sudachi_unavailable", lambda error: None)
 		assert not _grade_one("取り付け", "取付")
 		assert _grade_one("取り付け", "取り付け")
 		assert _grade_one("ガス", "がす")
@@ -411,7 +418,7 @@ class TestDualKeyMatching:
 		assert not _grade_one("ガス", "。")
 
 
-class TestNegativeMarking:
+class TestNegativeMarking(FillBlankTestCase):
 	def _graded(self, submitted):
 		blanks = [_blank("1", "a", 2), _blank("2", "b", 3)]
 		return grade_fill_blank(blanks, submitted)
@@ -446,7 +453,7 @@ class TestNegativeMarking:
 		assert graded["is_correct"] is False
 
 
-class TestCleanAnswerText:
+class TestCleanAnswerText(FillBlankTestCase):
 	def test_plain_text_is_only_trimmed(self):
 		assert clean_answer_text("  heat pump ") == "heat pump"
 		assert clean_answer_text("圧縮 機") == "圧縮 機"
@@ -476,7 +483,7 @@ class TestCleanAnswerText:
 			assert clean_answer_text(once) == once
 
 
-class TestParseSubmittedAnswer:
+class TestParseSubmittedAnswer(FillBlankTestCase):
 	def test_json_string(self):
 		assert parse_submitted_answer('{"1": "圧縮機", "2": "b"}') == {"1": "圧縮機", "2": "b"}
 
