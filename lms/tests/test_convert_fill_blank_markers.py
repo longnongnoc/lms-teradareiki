@@ -4,6 +4,7 @@
 
 import importlib.util
 import json
+import unittest
 from pathlib import Path
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "patches" / "v2_0" / "convert_fill_blank_markers.py"
@@ -16,7 +17,7 @@ remap_answer = patch.remap_answer
 convert_snapshot = patch.convert_snapshot
 
 
-class TestConvertMarkers:
+class TestConvertMarkers(unittest.TestCase):
 	def test_digit_ids_keep_their_ids(self):
 		plan = convert_markers("<p>{{2}} and {{ 1 }} and {{2}}</p>", ["2", "1"])
 		assert plan["text"] == "<p>[[2]] and [[1]] and [[2]]</p>"
@@ -74,7 +75,7 @@ class TestConvertMarkers:
 		assert convert_markers(None, [])["text"] == ""
 
 
-class TestRemapAnswer:
+class TestRemapAnswer(unittest.TestCase):
 	def test_keys_follow_the_new_ids(self):
 		stored = json.dumps({"a": "圧縮機", "b": "x"}, ensure_ascii=False)
 		assert json.loads(remap_answer(stored, {"b": "1", "a": "2"})) == {"2": "圧縮機", "1": "x"}
@@ -92,7 +93,7 @@ class TestRemapAnswer:
 		assert remap_answer(None, {"a": "1"}) is None
 
 
-class TestConvertSnapshot:
+class TestConvertSnapshot(unittest.TestCase):
 	def test_known_ids_use_the_mapping(self):
 		assert convert_snapshot("<p>{{b}} {{a}}</p>", {"b": "1", "a": "2"}) == "<p>[[1]] [[2]]</p>"
 

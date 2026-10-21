@@ -5,6 +5,7 @@
 import copy
 import importlib.util
 import json
+import unittest
 from pathlib import Path
 
 _LMS_DIR = Path(__file__).resolve().parents[1] / "lms"
@@ -55,7 +56,7 @@ def _has(errors, fragment):
 	return any(fragment in error for error in errors)
 
 
-class TestValidDocuments:
+class TestValidDocuments(unittest.TestCase):
 	def test_example_file_is_valid(self):
 		assert validate(_example()) == []
 
@@ -89,7 +90,7 @@ class TestValidDocuments:
 		assert normalize(doc)["tests"][0]["sections"][0]["questions"][0]["blanks"][0]["id"] == "1"
 
 
-class TestDocumentShape:
+class TestDocumentShape(unittest.TestCase):
 	def test_not_an_object(self):
 		assert _has(validate([]), "document")
 
@@ -104,7 +105,7 @@ class TestDocumentShape:
 		assert len(errors) >= 3
 
 
-class TestTestFields:
+class TestTestFields(unittest.TestCase):
 	def test_title_required_and_length(self):
 		assert _has(validate(_doc(_choice(), title="")), "tests[0].title: required")
 		assert _has(validate(_doc(_choice(), title="x" * 201)), "tests[0].title: at most 200")
@@ -141,7 +142,7 @@ class TestTestFields:
 		assert _has(validate(doc), "tests[1].title: duplicate of tests[0]")
 
 
-class TestSections:
+class TestSections(unittest.TestCase):
 	def test_sections_required(self):
 		doc = _doc(_choice())
 		doc["tests"][0]["sections"] = []
@@ -171,7 +172,7 @@ class TestSections:
 		assert _has(validate(doc), "sections[2].title: duplicate of sections[0]")
 
 
-class TestQuestions:
+class TestQuestions(unittest.TestCase):
 	def test_unknown_type(self):
 		errors = validate(_doc({"type": "essay", "text": "x"}))
 		assert _has(errors, "tests[0].sections[0].questions[0].type")
@@ -191,7 +192,7 @@ class TestQuestions:
 		assert validate(_doc(_choice(marks=3))) == []
 
 
-class TestChoice:
+class TestChoice(unittest.TestCase):
 	def test_text_required(self):
 		question = _choice()
 		question["text"] = " "
@@ -242,7 +243,7 @@ class TestChoice:
 		assert _has(validate(_doc(question)), "options[0].correct")
 
 
-class TestUserInput:
+class TestUserInput(unittest.TestCase):
 	def _q(self, answers):
 		return {"type": "user_input", "text": "<p>Q</p>", "answers": answers}
 
@@ -266,7 +267,7 @@ class TestUserInput:
 		]
 
 
-class TestFillBlank:
+class TestFillBlank(unittest.TestCase):
 	def test_matching_tokens_pass(self):
 		blanks = [{"id": "1", "answers": ["圧縮機"]}, {"id": "2", "answers": ["凝縮器"]}]
 		assert validate(_doc(_fill("<p>[[1]]と[[2]]</p>", blanks))) == []
@@ -322,9 +323,10 @@ class TestFillBlank:
 		assert out["blanks"] == [{"id": "1", "answers": ["圧縮機", "コンプレッサー"], "marks": 1}]
 
 
-def test_validate_does_not_mutate_input():
-	doc = _example()
-	before = copy.deepcopy(doc)
-	validate(doc)
-	normalize(doc)
-	assert doc == before
+class TestInputIsNotMutated(unittest.TestCase):
+	def test_validate_does_not_mutate_input(self):
+		doc = _example()
+		before = copy.deepcopy(doc)
+		validate(doc)
+		normalize(doc)
+		assert doc == before
