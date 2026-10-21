@@ -11,7 +11,7 @@ HOSTS = {"lms.example.com"}
 
 def test_constants():
 	assert qm.MAX_IMAGE_BYTES == 5 * 1024 * 1024
-	assert qm.MAX_IMAGES_PER_QUESTION == 5
+	assert qm.MAX_IMAGES_PER_QUESTION == 10
 	assert set(qm.ALLOWED_IMAGE_EXTENSIONS) == {".jpg", ".jpeg", ".png", ".webp"}
 
 

@@ -1,0 +1,48 @@
+{
+    "name": "9646 \u4fee\u4e86\u30c6\u30b9\u30c8",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:06.227340",
+    "modified": "2026-10-20 18:09:07.350582",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u4fee\u4e86\u30c6\u30b9\u30c8",
+    "course": "welcome-to-terada-reiki-v2",
+    "course_title": "Welcome to Terada Reiki\uff08\u30aa\u30ea\u30a8\u30f3\u30c6\u30fc\u30b7\u30e7\u30f3\uff09 [v2]",
+    "is_scorm_package": 0,
+    "scorm_package": null,
+    "scorm_package_path": null,
+    "manifest_file": null,
+    "launch_file": null,
+    "doctype": "Course Chapter",
+    "lessons": [
+        {
+            "name": "n8155246n2",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:06.227340",
+            "modified": "2026-10-20 18:09:07.350582",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "lesson": "9705 \u5168\u4f53\u307e\u3068\u3081",
+            "parent": "9646 \u4fee\u4e86\u30c6\u30b9\u30c8",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "n81u74b2ng",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:06.227340",
+            "modified": "2026-10-20 18:09:07.350582",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 2,
+            "lesson": "9706 \u4fee\u4e86\u30c6\u30b9\u30c8\uff0820\u70b9\uff09",
+            "parent": "9646 \u4fee\u4e86\u30c6\u30b9\u30c8",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        }
+    ]
+}
