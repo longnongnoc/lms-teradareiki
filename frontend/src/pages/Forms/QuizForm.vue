@@ -333,11 +333,9 @@
 					<BooleanSwitch
 						v-model="doc.show_answer_review"
 						size="sm"
-						:label="__('Show Answer Review')"
+						:label="__('Show blank-by-blank results after submitting')"
 						:description="
-							__(
-								'After submitting, show which blanks of a fill in the blanks question were right or wrong.'
-							)
+							__('Accepted answers are shown only when Show Answers is on.')
 						"
 					/>
 					<BooleanSwitch
@@ -364,7 +362,13 @@
 						v-model="doc.enable_negative_marking"
 						size="sm"
 						:label="__('Enable Negative Marking')"
-						:description="__('Deduct marks for incorrect answers.')"
+						:description="
+							__('Deduct marks for incorrect answers.') +
+							' ' +
+							__(
+								'Fill in the Blanks questions lose marks only when every blank is wrong.'
+							)
+						"
 					/>
 					<FormControl
 						v-if="doc.enable_negative_marking"
