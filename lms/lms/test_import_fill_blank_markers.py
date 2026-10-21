@@ -68,7 +68,9 @@ class TestImportLegacyFillBlankMarkers(BaseTestUtils):
 		quiz = frappe.get_doc("LMS Quiz", quiz_name)
 		self.assertEqual(len(quiz.questions), 2)
 		self.assertEqual(quiz.questions[0].question, name)
-		self.assertEqual(quiz.questions[0].marks, 4)
+		# A Fill Blank row's marks are re-derived from its blanks (2 + 3) on save,
+		# so the 4 in the export does not survive.
+		self.assertEqual(quiz.questions[0].marks, 5)
 		self.assertEqual(quiz.questions[1].question_detail, current)
 		self.assertEqual(quiz.questions[1].marks, 1)
 
