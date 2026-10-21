@@ -71,7 +71,8 @@ class TestImportLegacyFillBlankMarkers(BaseTestUtils):
 		# A Fill Blank row's marks are re-derived from its blanks (2 + 3) on save,
 		# so the 4 in the export does not survive.
 		self.assertEqual(quiz.questions[0].marks, 5)
-		self.assertEqual(quiz.questions[1].question_detail, current)
+		current_name = frappe.db.get_value("LMS Question", {"question": current}, "name")
+		self.assertEqual(quiz.questions[1].question, current_name)
 		self.assertEqual(quiz.questions[1].marks, 1)
 
 	def test_a_legacy_quiz_with_no_marks_uses_the_converted_questions_marks(self):
