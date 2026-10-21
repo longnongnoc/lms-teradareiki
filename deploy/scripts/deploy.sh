@@ -109,6 +109,30 @@ wait_healthy() {
   die "site did not become healthy within ${HEALTH_TIMEOUT}s (site_ping ok: $ping_ok, create-site exited 0: $created, create-site state: ${state:-none})"
 }
 
+# Once `up -d` recreates the containers, the new code serves the old schema
+# until migrate runs, so the pre-migrate backup has to be taken after pull and
+# before up, while the old backend is still running. Nothing has been changed
+# yet at that point, so aborting on failure is safe.
+backup_if_image_changed() {
+  local current previous cid
+  current=$(docker image inspect -f '{{.Id}}' "$LMS_IMAGE")
+  previous=$(cat "$STATE_FILE" 2>/dev/null || true)
+  if [[ -z $previous || $previous == "$current" ]]; then
+    return 0
+  fi
+  cid=$(docker ps -q \
+    --filter label=com.docker.compose.project=lms \
+    --filter label=com.docker.compose.service=backend | head -n1)
+  if [[ -z $cid ]]; then
+    log "image changed but backend is not running, skipping pre-migrate backup"
+    return 0
+  fi
+  log "image changed, backing up before the new image is applied"
+  "$REPO_DIR/deploy/scripts/backup.sh" \
+    || die "pre-migrate backup failed, aborting deploy (nothing has been changed)"
+  log "pre-migrate backup finished"
+}
+
 migrate_if_image_changed() {
   local current previous
   current=$(docker image inspect -f '{{.Id}}' "$LMS_IMAGE")
@@ -140,36 +164,39 @@ main() {
   log "acquiring deploy lock"
   flock -w 900 9 || die "another deploy is running"
 
-  log "step 1/7: load $ENV_FILE"
+  log "step 1/8: load $ENV_FILE"
   [[ -f $ENV_FILE ]] || die "$ENV_FILE not found"
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"
   set +a
-  : "${DOMAIN:?}" "${AWS_REGION:?}" "${LMS_IMAGE:?}"
+  : "${DOMAIN:?}" "${AWS_REGION:?}" "${LMS_IMAGE:?}" "${BACKUP_BUCKET:?}"
   : "${SSM_DB_ROOT_PASSWORD_PARAM:?}" "${SSM_ADMIN_PASSWORD_PARAM:?}"
   if [[ -n $image_tag ]]; then
     rewrite_image_tag "$image_tag"
   fi
 
-  log "step 2/7: checkout $ref"
+  log "step 2/8: checkout $ref"
   checkout_ref "$ref"
   log "now at $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 
-  log "step 3/7: fetch secrets from SSM"
+  log "step 3/8: fetch secrets from SSM"
   write_secrets
 
-  log "step 4/7: pull images"
+  log "step 4/8: pull images"
   dc pull
 
-  log "step 5/7: start stack"
+  log "step 5/8: back up site if the image changed"
+  backup_if_image_changed
+
+  log "step 6/8: start stack"
   dc up -d --remove-orphans
 
-  log "step 6/7: wait for site health (up to ${HEALTH_TIMEOUT}s)"
+  log "step 7/8: wait for site health (up to ${HEALTH_TIMEOUT}s)"
   wait_healthy
   migrate_if_image_changed
 
-  log "step 7/7: install backup timer and clean up"
+  log "step 8/8: install backup timer and clean up"
   install_backup_units
   docker image prune -f >/dev/null
   dc ps
