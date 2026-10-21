@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 
 import frappe
 from frappe import _
-from frappe.utils import escape_html, get_files_path, validate_email_address
+from frappe.utils import cint, escape_html, get_files_path, validate_email_address
 from frappe.utils.file_manager import is_safe_path
 
 from lms.lms.utils import create_user as create_lms_user
@@ -820,7 +820,13 @@ def add_questions_to_quiz(quiz_doc, questions):
 		question_detail = question["question_detail"]
 		question_name = frappe.db.get_value("LMS Question", {"question": question_detail}, "name")
 		if question_name:
-			quiz_doc.append("questions", {"question": question_name, "group": question.get("group")})
+			marks = question.get("marks")
+			if marks is None:
+				marks = frappe.db.get_value("LMS Question", question_name, "marks")
+			quiz_doc.append(
+				"questions",
+				{"question": question_name, "group": question.get("group"), "marks": cint(marks)},
+			)
 
 
 def create_supporting_docs(zip_file):
