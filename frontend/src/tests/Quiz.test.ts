@@ -615,12 +615,15 @@ describe('Quiz fill in the blanks', () => {
 		const wrapper = await begin()
 		const inputs = wrapper.findAll('input[type="text"]')
 		expect(inputs.map((i) => i.attributes('aria-label'))).toEqual([
-			'Blank 1',
-			'Blank 2',
+			'Blank 1 of 2',
+			'Blank 2 of 2',
 		])
 		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.text()).toContain('Fill in each blank')
 		expect(wrapper.find('td input').exists()).toBe(true)
+		const body = wrapper.get('input[type="text"]').element.closest('.leading-10')
+		expect(body).not.toBeNull()
+		expect(body?.classList.contains('font-semibold')).toBe(false)
 		wrapper.unmount()
 	})
 

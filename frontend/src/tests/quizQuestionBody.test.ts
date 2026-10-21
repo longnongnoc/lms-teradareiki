@@ -32,14 +32,62 @@ describe('QuizQuestionBody tokens', () => {
 		const inputs = wrapper.findAll('input')
 		expect(inputs).toHaveLength(3)
 		expect(inputs.map((i) => i.attributes('aria-label'))).toEqual([
-			'Blank 1',
-			'Blank 1',
-			'Blank 2',
+			'Blank 1 of 3',
+			'Blank 2 of 3',
+			'Blank 3 of 3',
 		])
 		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.find('p').text()).toContain('The')
 		expect(wrapper.find('p input').exists()).toBe(true)
 		expect(wrapper.find('td input').exists()).toBe(true)
+		wrapper.unmount()
+	})
+
+	it('scrolls a table inside its own box and lets cell inputs fill the cell', async () => {
+		const wrapper = await mountBody({
+			html: `<p>[[1]]</p>${TABLE}`,
+			fillBlank: true,
+		})
+		const box = wrapper.get('div.overflow-x-auto')
+		expect(box.find('table').exists()).toBe(true)
+		expect(wrapper.findAll('table')).toHaveLength(1)
+		const [inParagraph, firstCell] = wrapper.findAll('input')
+		expect(inParagraph.classes()).toContain('w-36')
+		expect(firstCell.classes()).toEqual(
+			expect.arrayContaining(['w-full', 'min-w-[5rem]'])
+		)
+		expect(firstCell.classes()).not.toContain('w-36')
+		wrapper.unmount()
+	})
+
+	it('does not wrap a table for another question type', async () => {
+		const wrapper = await mountBody({ html: TABLE })
+		expect(wrapper.find('.overflow-x-auto').exists()).toBe(false)
+		wrapper.unmount()
+	})
+
+	it('keeps a phone from zooming and from rewriting the answer', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[1]] [[2]]</p>',
+			fillBlank: true,
+		})
+		const [first, last] = wrapper.findAll('input')
+		expect(first.classes()).toEqual(
+			expect.arrayContaining(['text-lg', 'sm:text-base', 'h-9', 'sm:h-7'])
+		)
+		expect(first.attributes('autocorrect')).toBe('off')
+		expect(first.attributes('enterkeyhint')).toBe('next')
+		expect(last.attributes('enterkeyhint')).toBe('done')
+		wrapper.unmount()
+	})
+
+	it('ties each input to the line that says what to do', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[1]]</p>',
+			fillBlank: true,
+			describedby: 'hint-1',
+		})
+		expect(wrapper.get('input').attributes('aria-describedby')).toBe('hint-1')
 		wrapper.unmount()
 	})
 
@@ -78,7 +126,7 @@ describe('QuizQuestionBody tokens', () => {
 			fillBlank: true,
 		})
 		expect(wrapper.findAll('input')).toHaveLength(1)
-		expect(wrapper.find('input').attributes('aria-label')).toBe('Blank 2')
+		expect(wrapper.find('input').attributes('aria-label')).toBe('Blank 1 of 1')
 		expect(wrapper.find('img').attributes('alt')).toBe('[[1]]')
 		wrapper.unmount()
 	})
@@ -152,6 +200,11 @@ describe('QuizQuestionBody and Japanese IME', () => {
 		await flushPromises()
 		expect(plain.defaultPrevented).toBe(true)
 		expect(document.activeElement).toBe(second.element)
+		expect(wrapper.emitted('last-blank-enter')).toBeUndefined()
+
+		press(second.element as HTMLInputElement, {})
+		await flushPromises()
+		expect(wrapper.emitted('last-blank-enter')).toHaveLength(1)
 		wrapper.unmount()
 	})
 

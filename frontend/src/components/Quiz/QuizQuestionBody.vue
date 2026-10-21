@@ -5,7 +5,7 @@
 		@click="onHostClick"
 		@keydown="onHostKeydown"
 	></div>
-	<Teleport v-for="entry in slots" :key="entry.key" :to="entry.el">
+	<Teleport v-for="(entry, index) in slots" :key="entry.key" :to="entry.el">
 		<span
 			v-if="review"
 			data-testid="blank-result"
@@ -20,7 +20,7 @@
 			<span
 				:class="
 					resultFor(entry.id)?.is_correct
-						? 'lucide-check-circle text-ink-green-4'
+						? 'lucide-check-circle text-ink-green-6'
 						: 'lucide-x-circle text-ink-red-5'
 				"
 				class="size-4 shrink-0"
@@ -63,11 +63,15 @@
 			v-else
 			type="text"
 			data-blank-input
-			class="h-7 w-36 max-w-full rounded-4 border border-outline-gray-3 bg-surface-base px-2 align-middle text-base font-normal text-ink-gray-9 placeholder:text-ink-gray-4 focus:border-outline-gray-5 focus:ring-0 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60"
+			class="h-9 rounded-4 border border-outline-gray-5 bg-surface-gray-1 px-2 align-middle text-lg font-normal text-ink-gray-9 placeholder:text-ink-gray-4 focus-visible:border-outline-gray-8 focus-visible:ring-2 focus-visible:ring-outline-gray-3 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:text-base"
+			:class="entry.inCell ? 'w-full min-w-[5rem]' : 'w-36 max-w-full'"
 			autocomplete="off"
 			autocapitalize="off"
+			autocorrect="off"
 			spellcheck="false"
-			:aria-label="__('Blank {0}').format(entry.id)"
+			:enterkeyhint="index === slots.length - 1 ? 'done' : 'next'"
+			:aria-label="__('Blank {0} of {1}').format(index + 1, slots.length)"
+			:aria-describedby="describedby || undefined"
 			:disabled="disabled"
 			:value="answerFor(entry.id)"
 			@input="onInput(entry.id, $event)"
@@ -107,6 +111,8 @@ const props = withDefaults(
 		disabled?: boolean
 		answers?: Record<string, string>
 		results?: Record<string, BlankResult> | null
+		// The id of the line that tells the learner what to do, read with each input.
+		describedby?: string
 	}>(),
 	{
 		html: '',
@@ -115,11 +121,15 @@ const props = withDefaults(
 		disabled: false,
 		answers: () => ({}),
 		results: null,
+		describedby: '',
 	}
 )
-const emit = defineEmits<{ 'update:blank': [id: string, value: string] }>()
+const emit = defineEmits<{
+	'update:blank': [id: string, value: string]
+	'last-blank-enter': []
+}>()
 
-type Slot = { key: string; id: string; el: HTMLElement }
+type Slot = { key: string; id: string; el: HTMLElement; inCell: boolean }
 
 const host = ref<HTMLElement | null>(null)
 const slots = shallowRef<Slot[]>([])
@@ -144,13 +154,33 @@ const replaceTokens = (fragment: DocumentFragment): Slot[] => {
 			if (part.type === 'text') return doc.createTextNode(part.value)
 			const el = doc.createElement('span')
 			el.setAttribute('data-blank-slot', part.id)
-			el.className = 'mx-0.5 inline-block max-w-full'
-			found.push({ key: `${found.length}-${part.id}`, id: part.id, el })
+			// In a table cell the input fills the cell instead of pushing the table wider.
+			const inCell = Boolean(text.parentElement?.closest('td, th'))
+			el.className = inCell
+				? 'inline-block w-full max-w-full'
+				: 'mx-0.5 inline-block max-w-full'
+			found.push({
+				key: `${found.length}-${part.id}`,
+				id: part.id,
+				el,
+				inCell,
+			})
 			return el
 		})
 		text.replaceWith(...nodes)
 	}
 	return found
+}
+
+// A wide table scrolls inside its own box, so the page does not scroll sideways on a phone.
+const wrapTables = (fragment: DocumentFragment): void => {
+	const doc = fragment.ownerDocument
+	for (const table of Array.from(fragment.querySelectorAll('table'))) {
+		const box = doc.createElement('div')
+		box.className = 'overflow-x-auto'
+		table.replaceWith(box)
+		box.appendChild(table)
+	}
 }
 
 const makeImagesReachable = (fragment: DocumentFragment): void => {
@@ -172,6 +202,7 @@ const render = (): void => {
 	if (!root) return
 	const fragment = sanitizeAtFragment('rich', props.html)
 	const found = props.fillBlank ? replaceTokens(fragment) : []
+	if (props.fillBlank) wrapTables(fragment)
 	makeImagesReachable(fragment)
 	root.replaceChildren(fragment)
 	slots.value = found
@@ -241,6 +272,7 @@ const onEnter = (event: KeyboardEvent): void => {
 			[]
 	)
 	const next = inputs[inputs.indexOf(event.target as HTMLInputElement) + 1]
-	nextTick(() => next?.focus())
+	if (next) nextTick(() => next.focus())
+	else emit('last-blank-enter')
 }
 </script>

@@ -331,7 +331,7 @@
 
 						<div class="space-y-3 p-3.5">
 							<div class="space-y-1">
-								<div class="text-sm text-ink-gray-6">
+								<div :id="instructionId" class="text-sm text-ink-gray-6">
 									{{
 										questionDetails.data.type == 'Open Ended'
 											? __('Written response')
@@ -340,9 +340,13 @@
 								</div>
 								<QuizQuestionBody
 									:id="questionTextId"
-									class="text-p-base font-semibold text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+									class="text-p-base text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+									:class="
+										isFillBlank ? 'leading-10 sm:leading-9' : 'font-semibold'
+									"
 									:html="questionDetails.data.question"
 									:fillBlank="isFillBlank"
+									:describedby="instructionId"
 									:review="!!fillBlankGrade"
 									:disabled="!!showAnswers.length"
 									:answers="blankAnswers"
@@ -409,7 +413,7 @@
 											>
 												<template v-if="showAnswers[index - 1] == 1">
 													<span
-														class="lucide-check-circle size-4 shrink-0 text-ink-green-4"
+														class="lucide-check-circle size-4 shrink-0 text-ink-green-6"
 														aria-hidden="true"
 													/>
 													<span class="sr-only">
@@ -418,7 +422,7 @@
 												</template>
 												<template v-else-if="showAnswers[index - 1] == 2">
 													<span
-														class="lucide-minus-circle size-4 shrink-0 text-ink-green-4"
+														class="lucide-minus-circle size-4 shrink-0 text-ink-green-6"
 														aria-hidden="true"
 													/>
 													<span class="sr-only">{{
@@ -668,7 +672,7 @@
 							</span>
 						</div>
 						<QuizQuestionBody
-							class="text-p-base leading-8 text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+							class="text-p-base leading-10 text-ink-gray-9 break-words sm:leading-9 [&_img]:h-auto [&_img]:max-w-full"
 							review
 							fillBlank
 							:html="item.question"
@@ -1156,6 +1160,7 @@ const questionsByName = ref<Record<string, QuizQuestionDetails>>({})
 // Native radios group by name across the page, and a lesson can show two quizzes.
 const optionGroup = useId()
 const questionTextId = useId()
+const instructionId = useId()
 const summaryHeading = ref<HTMLElement | null>(null)
 
 const quiz = createResource<QuizDetails>({
