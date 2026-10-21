@@ -14,8 +14,8 @@ Infrastructure (EC2, S3, SSM parameters) lives in `infra/`.
 ## How deploys work
 
 1. `user_data` clones the repo to `/opt/lms-repo` and runs `deploy.sh <ref>` once.
-2. The `Deploy LMS` workflow runs the same script through SSM Run Command, on dispatch
-   or on push to develop/main/feature/deploy-aws-terraform touching `deploy/**`.
+2. The `Deploy LMS` workflow runs the same script through SSM Run Command. See
+   "Deploy triggers" below for what starts it and which image it deploys.
 3. The script reads `/opt/lms/.env`, checks out the ref, writes `/opt/lms/secrets.env`
    from SSM (mode 600), pulls images, and, when the pulled image differs from the
    last deployed one (`/opt/lms/deployed-image-id`) and the backend is running, runs
@@ -26,6 +26,18 @@ Infrastructure (EC2, S3, SSM parameters) lives in `infra/`.
    missing `payments` or `lms` app, so a partially created site is repaired.
 
 The DB root password only takes effect when the `db-data` volume is first created.
+
+## Deploy triggers
+
+- After merge to main, `Build LMS image` builds and pushes `ghcr.io/18phongnguyen/terada-lms:main` and `:sha-<7char>`. When that run succeeds and was started by a push, `Deploy LMS` starts (`workflow_run`) and deploys ref `main` with image tag `sha-<7char>` of the commit the build ran on. `deploy.sh` rewrites `LMS_IMAGE` in `/opt/lms/.env` to that tag, backs up, recreates containers and runs `bench migrate` because the image changed. A failed or cancelled build deploys nothing; a dispatched build never deploys itself.
+- A push to main touching only `deploy/**` (`Build LMS image` ignores those paths) runs `Deploy LMS` without an image tag: new deploy files, same pinned image. A push touching both app code and `deploy/**` deploys twice: first the deploy files with the old image, then the new image when the build finishes.
+- Manual dispatch (rollback, redeploy): `image_tag` is required. The workflow fails before touching the instance if it is empty or the tag is not in GHCR. To redeploy what is running, pass the tag pinned in `/opt/lms/.env` (shown in the previous run's summary and in the deploy log line `LMS_IMAGE set to ...`). For example:
+
+      gh workflow run "Deploy LMS" -f image_tag=sha-1a2b3c4
+
+- Why the tag is required: on 2026-10-21 a dispatch without `image_tag` redeployed the pinned `sha-6487cf3` and reported success while main had newer builds.
+- Deploys share the `deploy-lms` concurrency group: one runs at a time, and a newer queued deploy replaces an older queued one. Re-running an old successful `Build LMS image` run redeploys that older image (a way to roll back, but do it on purpose).
+- The `workflow_run` trigger only takes effect from the copy of `deploy.yml` on the default branch.
 
 ## LMS image
 
