@@ -198,7 +198,10 @@ main() {
 
   log "step 8/8: install backup timer and clean up"
   install_backup_units
-  docker image prune -f >/dev/null
+  # -a: every deploy leaves the previous tagged image (~3.8 GB) behind, and a
+  # plain prune only drops untagged ones, which filled the 30 GB root volume.
+  # Images still used by a container are kept; an older tag can be pulled again.
+  docker image prune -a -f >/dev/null
   dc ps
   log "deploy finished"
 }
