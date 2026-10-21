@@ -16,3 +16,4 @@ recursive-include lms *.py
 recursive-include lms *.svg
 recursive-include lms *.txt
 recursive-exclude lms *.pyc
+recursive-include lms *.jpeg

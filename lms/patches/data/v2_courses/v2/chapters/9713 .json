@@ -1,0 +1,48 @@
+{
+    "name": "9713 \u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d\u306e\u6ce8\u610f",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:09.003426",
+    "modified": "2026-10-20 18:09:09.934573",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d\u306e\u6ce8\u610f",
+    "course": "v2",
+    "course_title": "\u73fe\u5834\u30eb\u30fc\u30eb\u30fb\u30de\u30ca\u30fc\u3068\u5b89\u5168\u885b\u751f [v2]",
+    "is_scorm_package": 0,
+    "scorm_package": null,
+    "scorm_package_path": null,
+    "manifest_file": null,
+    "launch_file": null,
+    "doctype": "Course Chapter",
+    "lessons": [
+        {
+            "name": "n8runnuiuq",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:09.003426",
+            "modified": "2026-10-20 18:09:09.934573",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "lesson": "9793 \u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d\u306e\u57fa\u790e\u77e5\u8b58\u3068\u5b89\u5168\u5bfe\u7b56",
+            "parent": "9713 \u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d\u306e\u6ce8\u610f",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "n8rk3em6m8",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:09.003426",
+            "modified": "2026-10-20 18:09:09.934573",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 2,
+            "lesson": "9794 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d",
+            "parent": "9713 \u9178\u6b20\u30fb\u5bc6\u9589\u7a7a\u9593\u4f5c\u696d\u306e\u6ce8\u610f",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        }
+    ]
+}

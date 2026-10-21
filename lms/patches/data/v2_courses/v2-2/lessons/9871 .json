@@ -1,0 +1,41 @@
+{
+    "name": "9871 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:12.515581",
+    "modified": "2026-10-20 18:09:12.515581",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+    "include_in_preview": 1,
+    "is_scorm_package": 0,
+    "chapter": "9803 \u52fe\u914d\u306e\u53d6\u308a\u65b9",
+    "course": "v2-2",
+    "content": "{\"time\":1792487228762,\"blocks\":[{\"id\":\"21598436de\",\"type\":\"header\",\"data\":{\"text\":\"<span style=\\\"font-size:26px;font-weight:700;line-height:1.4;display:block;margin-top:26px;padding-bottom:8px;border-bottom:2px solid rgba(128, 128, 128, 0.35)\\\">\\u78ba\\u8a8d\\u30af\\u30a4\\u30ba\\uff1a\\u52fe\\u914d\\u306e\\u53d6\\u308a\\u65b9</span>\",\"level\":2}},{\"id\":\"f02eb025f7\",\"type\":\"paragraph\",\"data\":{\"text\":\"<span style=\\\"display:block;font-size:16px;line-height:1.85\\\">70%\\u4ee5\\u4e0a\\u3067\\u5408\\u683c\\u3067\\u3059\\u3002</span>\"}},{\"id\":\"dbfbab8776\",\"type\":\"quiz\",\"data\":{\"quiz\":\"n9hsv93g1m\"}}],\"version\":\"2.30.0\"}",
+    "body": null,
+    "instructor_content": null,
+    "instructor_notes": null,
+    "youtube": null,
+    "quiz_id": null,
+    "question": null,
+    "file_type": "",
+    "doctype": "Course Lesson",
+    "assessments": [
+        {
+            "name": "n9libbdpap",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:12.519942",
+            "modified": "2026-10-20 18:09:12.519942",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "assessment_type": "LMS Quiz",
+            "assessment_name": "n9hsv93g1m",
+            "instructor_only": 0,
+            "parent": "9871 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parentfield": "assessments",
+            "parenttype": "Course Lesson",
+            "doctype": "LMS Lesson Assessment"
+        }
+    ]
+}
