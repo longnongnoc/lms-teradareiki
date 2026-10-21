@@ -288,10 +288,16 @@ export async function openQuiz(page: Page, quizName: string) {
 	await start.click();
 }
 
-// One text input per blank, aria-labelled "Blank N" (QuizQuestionBody.vue).
+// One text input per blank, aria-labelled "Blank N of M" (QuizQuestionBody.vue),
+// where N is the blank's position in the question. The specs write the blanks
+// in order, so N is also the blank id. M is not worth hard-coding in each spec.
+export function blankInput(page: Page, id: string) {
+	return page.getByLabel(new RegExp(`^Blank ${id} of \\d+$`));
+}
+
 export async function fillBlanks(page: Page, answers: Record<string, string>) {
 	for (const [id, value] of Object.entries(answers)) {
-		await page.getByLabel(`Blank ${id}`, { exact: true }).fill(value);
+		await blankInput(page, id).fill(value);
 	}
 }
 
