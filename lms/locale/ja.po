@@ -51185,7 +51185,7 @@ msgstr "もう一度挑戦"
 
 #: frontend/src/components/Quiz.vue:628
 msgid "Fill in the blanks review"
-msgstr "穴埋め問題の確認"
+msgstr "穴埋め問題の答え合わせ"
 
 #: frontend/src/components/Quiz.vue:692
 msgid "Question {0}, answered"
@@ -51241,11 +51241,11 @@ msgstr "受験できる回数が残っていません。"
 
 #: frontend/src/components/Quiz.vue:1753
 msgid "Please fill in at least one blank"
-msgstr "少なくとも1つの空欄を入力してください"
+msgstr "空欄に1つ以上答えを入力してください"
 
 #: frontend/src/components/Quiz.vue:1956
 msgid "Fill in each blank"
-msgstr "各空欄を入力してください"
+msgstr "それぞれの空欄に答えを入力してください"
 
 #: frontend/src/components/Quiz/FillBlankAnswers.vue:4 lms/lms/doctype/lms_question/lms_question.json
 msgid "Blanks"
@@ -51261,11 +51261,11 @@ msgstr "空欄 {0} の点数"
 
 #: frontend/src/components/Quiz/FillBlankAnswers.vue:55
 msgid "Accepted answers (one per line)"
-msgstr "正解として許容する答え（1行に1つ）"
+msgstr "正解（複数ある場合は1行に1つ）"
 
 #: frontend/src/components/Quiz/FillBlankAnswers.vue:66
 msgid "Add at least one accepted answer"
-msgstr "正解として許容する答えを1つ以上追加してください"
+msgstr "正解を1つ以上入力してください"
 
 #: frontend/src/components/Quiz/FillBlankAnswers.vue:73
 msgid "Marks must be a whole number, 1 or more"
@@ -51313,7 +51313,7 @@ msgstr "回答なし"
 
 #: frontend/src/components/Quiz/QuizQuestionBody.vue:58
 msgid "Accepted answers"
-msgstr "正解として許容する答え"
+msgstr "正解"
 
 #: frontend/src/components/Quiz/QuizQuestionBody.vue:164
 msgid "Enlarge image: {0}"
@@ -51533,11 +51533,11 @@ msgstr "自動採点、複数の空欄"
 
 #: frontend/src/utils/quizQuestion.js:117
 msgid "1 blank"
-msgstr "空欄1つ"
+msgstr "空欄 1 個"
 
 #: frontend/src/utils/quizQuestion.js:117
 msgid "{0} blanks"
-msgstr "空欄{0}つ"
+msgstr "空欄 {0} 個"
 
 #: frontend/src/utils/quizResults.ts:86
 msgid "Pending Practical"
@@ -51846,3 +51846,67 @@ msgstr "テキストか画像を追加するか、正解のチェックを外し
 #: frontend/src/pages/QuizSubmission.vue
 msgid "Image option {0}"
 msgstr "画像の選択肢 {0}"
+
+#: frontend/src/components/Quiz/QuizQuestionBody.vue
+msgid "Blank {0} of {1}"
+msgstr "空欄 {0}/{1}"
+
+#: frontend/src/components/Quiz.vue
+msgid "Fill in every blank before checking"
+msgstr "確認する前に、すべての空欄に答えを入力してください"
+
+#: frontend/src/components/Quiz.vue
+msgid "Question {0}, {1} of {2} blanks filled"
+msgstr "問題 {0}、{2} 個の空欄のうち {1} 個入力済み"
+
+#: frontend/src/components/Quiz.vue
+msgid "1 blank is still empty"
+msgstr "空欄があと 1 個残っています"
+
+#: frontend/src/components/Quiz.vue
+msgid "{0} blanks are still empty"
+msgstr "空欄があと {0} 個残っています"
+
+#: frontend/src/components/Quiz.vue frontend/src/pages/QuizSubmission.vue
+msgid "Partly correct"
+msgstr "一部正解"
+
+#: frontend/src/components/Quiz.vue
+msgid "Could not check the answer. Please try again."
+msgstr "答えを確認できませんでした。もう一度お試しください。"
+
+#: frontend/src/components/Quiz.vue frontend/src/pages/Forms/QuizForm.vue
+msgid "Fill in the Blanks questions lose marks only when every blank is wrong."
+msgstr "穴埋め問題は、すべての空欄が不正解の場合のみ減点されます。"
+
+#: frontend/src/components/Quiz/QuestionEditor.vue
+msgid "Full-width ［［１］］ is not a blank marker. Use Insert blank."
+msgstr "全角の［［１］］はマーカーとして認識されません。「空欄を挿入」を使ってください。"
+
+#: frontend/src/components/Quiz/QuestionEditor.vue
+msgid "Marker [[{0}]] appears more than once"
+msgstr "マーカー [[{0}]] が複数回使われています"
+
+#: frontend/src/components/Quiz/FillBlankAnswers.vue
+msgid "Total: {0}"
+msgstr "合計: {0}"
+
+#: frontend/src/components/Quiz/FillBlankAnswers.vue
+msgid "Example: compressor"
+msgstr "例: 圧縮機"
+
+#: frontend/src/components/Quiz/FillBlankAnswers.vue
+msgid "Example: air compressor"
+msgstr "例: コンプレッサー"
+
+#: frontend/src/components/Quiz/FillBlankAnswers.vue
+msgid "Hiragana/katakana, full/half-width, spaces, punctuation and okurigana variants match automatically."
+msgstr "ひらがな/カタカナ、全角/半角、スペース、句読点、送り仮名の違いは自動的に同じ答えとして扱われます。"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Show blank-by-blank results after submitting"
+msgstr "提出後に空欄ごとの正誤を表示"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Accepted answers are shown only when Show Answers is on."
+msgstr "正解は「解答を表示」がオンの場合のみ表示されます。"
