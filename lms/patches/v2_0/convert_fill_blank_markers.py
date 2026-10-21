@@ -1,8 +1,4 @@
-import json
-import re
-
-LEGACY_TOKEN = re.compile(r"\{\{\s*([^{}\s]+)\s*\}\}")
-DIGITS = re.compile(r"[0-9]+")
+from lms.lms.fill_blank import LEGACY_TOKEN, convert_markers, convert_snapshot, remap_answer
 
 
 def execute():
@@ -81,64 +77,3 @@ def _convert_question(question):
 		text = convert_snapshot(result.question, plan["ids"])
 		if text != result.question:
 			frappe.db.set_value("LMS Quiz Result", result.name, "question", text, update_modified=False)
-
-
-def convert_markers(text: str, row_ids: list[str]) -> dict:
-	"""Plan the conversion of one question.
-
-	Returns the new text, `ids` (old id -> new id for every marker), `row_ids` (the new
-	blank_id of each row, in the order given) and whether any id changed.
-	"""
-	found: list[str] = []
-	for old_id in LEGACY_TOKEN.findall(text or ""):
-		if old_id not in found:
-			found.append(old_id)
-
-	renumbered = not all(DIGITS.fullmatch(old_id) for old_id in found)
-	ids = (
-		{old_id: str(position) for position, old_id in enumerate(found, 1)}
-		if renumbered
-		else {old_id: old_id for old_id in found}
-	)
-
-	new_text = LEGACY_TOKEN.sub(lambda match: f"[[{ids[match.group(1)]}]]", text or "")
-
-	row_new_ids = []
-	taken = set(ids.values())
-	next_free = 1
-	for raw_id in row_ids:
-		old_id = (raw_id or "").strip()
-		if old_id in ids:
-			row_new_ids.append(ids[old_id])
-		elif not renumbered and DIGITS.fullmatch(old_id):
-			row_new_ids.append(old_id)
-		else:
-			while str(next_free) in taken:
-				next_free += 1
-			row_new_ids.append(str(next_free))
-			taken.add(str(next_free))
-
-	return {"text": new_text, "ids": ids, "row_ids": row_new_ids, "renumbered": renumbered}
-
-
-def remap_answer(stored, ids: dict[str, str]) -> str | None:
-	"""A stored answer with its keys moved to the new ids, or None if it is not a JSON object."""
-	try:
-		answers = json.loads(stored or "")
-	except (TypeError, ValueError):
-		return None
-	if not isinstance(answers, dict):
-		return None
-	return json.dumps({ids[key]: value for key, value in answers.items() if key in ids}, ensure_ascii=False)
-
-
-def convert_snapshot(text, ids: dict[str, str]) -> str:
-	"""The question text kept with a past result, markers moved to the new syntax."""
-
-	def replace(match):
-		old_id = match.group(1)
-		if old_id in ids:
-			return f"[[{ids[old_id]}]]"
-		return f"[[{old_id}]]" if DIGITS.fullmatch(old_id) else match.group(0)
-
-	return LEGACY_TOKEN.sub(replace, text or "")

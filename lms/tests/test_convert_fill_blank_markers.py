@@ -4,8 +4,12 @@
 
 import importlib.util
 import json
+import sys
 import unittest
 from pathlib import Path
+
+# The patch imports the pure helpers from the app package, so the app root must be importable.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 _MODULE_PATH = Path(__file__).resolve().parents[1] / "patches" / "v2_0" / "convert_fill_blank_markers.py"
 _spec = importlib.util.spec_from_file_location("lms_convert_fill_blank_markers_under_test", _MODULE_PATH)
