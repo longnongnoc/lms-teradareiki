@@ -49,7 +49,9 @@ def test_data_uri_detection():
 	assert not qm.is_data_uri("/files/a.png")
 	assert not qm.is_data_uri("")
 	assert not qm.is_data_uri(None)
-	assert qm.count_data_uri_images(["/files/a.png", "data:image/png;base64,A", "data:image/gif;base64,B"]) == 2
+	assert (
+		qm.count_data_uri_images(["/files/a.png", "data:image/png;base64,A", "data:image/gif;base64,B"]) == 2
+	)
 
 
 def test_image_limit():
@@ -179,7 +181,13 @@ def test_option_key_is_text_or_image_slot():
 
 
 def test_option_keys_distinguish_image_only_options():
-	options = [("A", None), (None, "/files/a.png"), (None, None), (None, "/files/b.png"), ("D", "/files/d.png")]
+	options = [
+		("A", None),
+		(None, "/files/a.png"),
+		(None, None),
+		(None, "/files/b.png"),
+		("D", "/files/d.png"),
+	]
 	keys = qm.option_keys(options)
 	assert keys == ["A", "[image:2]", None, "[image:4]", "D"]
 	present = [key for key in keys if key]

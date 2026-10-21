@@ -615,7 +615,7 @@ const practicalError = computed(() =>
 		? ''
 		: __(
 				'Practical Max Marks must be between 0 and 999.99, with at most 2 decimals'
-			)
+		  )
 )
 
 // setValue replaces doc wholesale and unmounts every open editor, so a save waits for them.

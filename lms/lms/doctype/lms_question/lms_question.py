@@ -58,7 +58,9 @@ def validate_question_images(question):
 
 	if count_data_uri_images(body_sources):
 		frappe.throw(
-			_("Images embedded in the question text are not supported. Upload the image instead of pasting it.")
+			_(
+				"Images embedded in the question text are not supported. Upload the image instead of pasting it."
+			)
 		)
 
 	if exceeds_image_limit(body_sources):
