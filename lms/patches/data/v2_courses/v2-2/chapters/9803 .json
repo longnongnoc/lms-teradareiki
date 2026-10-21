@@ -1,0 +1,62 @@
+{
+    "name": "9803 \u52fe\u914d\u306e\u53d6\u308a\u65b9",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:11.888316",
+    "modified": "2026-10-20 18:09:12.878262",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+    "course": "v2-2",
+    "course_title": "\u6e2c\u308a\u65b9\u30fb\u990a\u751f\u30fb\u5de5\u5177\u30fb\u30ed\u30fc\u30d7\u306e\u57fa\u672c [v2]",
+    "is_scorm_package": 0,
+    "scorm_package": null,
+    "scorm_package_path": null,
+    "manifest_file": null,
+    "launch_file": null,
+    "doctype": "Course Chapter",
+    "lessons": [
+        {
+            "name": "n9oc66i5pt",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:11.888316",
+            "modified": "2026-10-20 18:14:58.535322",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "lesson": "9869 \u52fe\u914d\u3068\u306f\u30fb\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parent": "9803 \u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "n9out542ja",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:11.888316",
+            "modified": "2026-10-20 18:14:58.536232",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 2,
+            "lesson": "9870 \u52fe\u914d\u306e\u6ce8\u610f\u70b9\u3068\u5b9f\u7fd2",
+            "parent": "9803 \u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "n9o97pi3l5",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:11.888316",
+            "modified": "2026-10-20 18:14:58.537066",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 3,
+            "lesson": "9871 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parent": "9803 \u52fe\u914d\u306e\u53d6\u308a\u65b9",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        }
+    ]
+}
