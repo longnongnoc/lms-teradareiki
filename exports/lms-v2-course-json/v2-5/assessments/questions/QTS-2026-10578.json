@@ -6,7 +6,7 @@
     "modified_by": "Administrator",
     "docstatus": 0,
     "idx": 0,
-    "question": "<p><small>\u3010\u4fee\u4e86\u30c6\u30b9\u30c8\u2461\uff1a\u7d99\u624b\u306e\u7a2e\u985e\uff0825\u70b9\uff09\u3011</small></p><p><b>6. \u7d99\u624b\u7a2e\u985e\u6bd4\u8f03</b></p><table><tbody><tr><td>\u7d99\u624b</td><td>\u5f37\u5ea6</td><td>\u65bd\u5de5\u6027</td><td>\u5206\u89e3</td></tr><tr><td>\u306d\u3058\u7d99\u624b</td><td>\u4e2d</td><td>\u826f\u3044</td><td>{{1}}</td></tr><tr><td>\u6eb6\u63a5\u7d99\u624b</td><td>{{2}}</td><td>\u96e3\u3057\u3044</td><td>{{3}}</td></tr><tr><td>\u6a39\u8102\u7d99\u624b</td><td>\u4e2d</td><td>\u826f\u3044</td><td>\u4e0d\u53ef</td></tr><tr><td>\u30c0\u30d6\u30eb\u30d7\u30ec\u30b9\u7d99\u624b</td><td>{{4}}</td><td>\u975e\u5e38\u306b\u826f\u3044</td><td>\u4e0d\u53ef</td></tr></tbody></table>",
+    "question": "<p><small>\u3010\u4fee\u4e86\u30c6\u30b9\u30c8\u2461\uff1a\u7d99\u624b\u306e\u7a2e\u985e\uff0825\u70b9\uff09\u3011</small></p><p><b>6. \u7d99\u624b\u7a2e\u985e\u6bd4\u8f03</b></p><table><tbody><tr><td>\u7d99\u624b</td><td>\u5f37\u5ea6</td><td>\u65bd\u5de5\u6027</td><td>\u5206\u89e3</td></tr><tr><td>\u306d\u3058\u7d99\u624b</td><td>\u4e2d</td><td>\u826f\u3044</td><td>[[1]]</td></tr><tr><td>\u6eb6\u63a5\u7d99\u624b</td><td>[[2]]</td><td>\u96e3\u3057\u3044</td><td>[[3]]</td></tr><tr><td>\u6a39\u8102\u7d99\u624b</td><td>\u4e2d</td><td>\u826f\u3044</td><td>\u4e0d\u53ef</td></tr><tr><td>\u30c0\u30d6\u30eb\u30d7\u30ec\u30b9\u7d99\u624b</td><td>[[4]]</td><td>\u975e\u5e38\u306b\u826f\u3044</td><td>\u4e0d\u53ef</td></tr></tbody></table>",
     "type": "Fill Blank",
     "multiple": 0,
     "marks": 4,
