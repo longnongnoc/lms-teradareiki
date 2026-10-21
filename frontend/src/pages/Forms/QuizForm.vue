@@ -363,10 +363,11 @@
 						size="sm"
 						:label="__('Enable Negative Marking')"
 						:description="
-							__('Deduct marks for incorrect answers.') +
-							' ' +
-							__(
-								'Fill in the Blanks questions lose marks only when every blank is wrong.'
+							joinSentences(
+								__('Deduct marks for incorrect answers.'),
+								__(
+									'Fill in the Blanks questions lose marks only when every blank is wrong.'
+								)
 							)
 						"
 					/>
@@ -491,6 +492,7 @@ import {
 	validateSections,
 } from '@/utils/quizSections'
 import { isValidPracticalMaxMarks } from '@/utils/quizSettings'
+import { joinSentences } from '@/utils/quizSummary'
 import { getLmsRoute } from '@/utils/basePath'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import { useCanWrite } from '@/composables/useCanWrite'

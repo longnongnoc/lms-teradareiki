@@ -970,7 +970,11 @@ import AssessmentCardHeader from '@/components/Assessment/AssessmentCardHeader.v
 import OptionRow from '@/components/Assessment/OptionRow.vue'
 import FeedbackBanner from '@/components/Assessment/FeedbackBanner.vue'
 import QuizStats from '@/components/Assessment/QuizStats.vue'
-import { attemptsLeftLabel, formatQuizSubtitle } from '@/utils/quizSummary'
+import {
+	attemptsLeftLabel,
+	formatQuizSubtitle,
+	joinSentences,
+} from '@/utils/quizSummary'
 import { orderQuizQuestions } from '@/utils/quizSections'
 import { safeUrl } from '@/utils/safeUrl'
 import {
@@ -1362,9 +1366,12 @@ const introTips = computed(() => {
 		)
 		tips.push(
 			hasFillBlankQuestions.value
-				? `${deduction} ${__(
-						'Fill in the Blanks questions lose marks only when every blank is wrong.'
-				  )}`
+				? joinSentences(
+						deduction,
+						__(
+							'Fill in the Blanks questions lose marks only when every blank is wrong.'
+						)
+				  )
 				: deduction
 		)
 	}
