@@ -1,0 +1,48 @@
+{
+    "name": "9809 \u5b9f\u7fd2\uff08\u58a8\u51fa\u3057\u56f3\uff09",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:11.914819",
+    "modified": "2026-10-20 18:09:12.975062",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u5b9f\u7fd2\uff08\u58a8\u51fa\u3057\u56f3\uff09",
+    "course": "v2-2",
+    "course_title": "\u6e2c\u308a\u65b9\u30fb\u990a\u751f\u30fb\u5de5\u5177\u30fb\u30ed\u30fc\u30d7\u306e\u57fa\u672c [v2]",
+    "is_scorm_package": 0,
+    "scorm_package": null,
+    "scorm_package_path": null,
+    "manifest_file": null,
+    "launch_file": null,
+    "doctype": "Course Chapter",
+    "lessons": [
+        {
+            "name": "n9po9rlubt",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:11.914819",
+            "modified": "2026-10-20 18:09:12.975062",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "lesson": "9889 \u5b9f\u7fd2\uff1a\u58a8\u51fa\u3057\u56f3\u3092\u8aad\u3080",
+            "parent": "9809 \u5b9f\u7fd2\uff08\u58a8\u51fa\u3057\u56f3\uff09",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "n9ptc70gpi",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:11.914819",
+            "modified": "2026-10-20 18:09:12.975062",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 2,
+            "lesson": "9890 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u58a8\u51fa\u3057\u56f3\u306e\u5b9f\u7fd2",
+            "parent": "9809 \u5b9f\u7fd2\uff08\u58a8\u51fa\u3057\u56f3\uff09",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        }
+    ]
+}
