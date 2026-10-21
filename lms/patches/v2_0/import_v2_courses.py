@@ -7,6 +7,14 @@ import frappe
 from lms.lms.course_import_export import import_course_zip
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "v2_courses")
+V2_COURSES = (
+	"v2",
+	"v2-2",
+	"v2-3",
+	"v2-4",
+	"v2-5",
+	"welcome-to-terada-reiki-v2",
+)
 
 
 def execute():
@@ -17,17 +25,10 @@ def execute():
 	zip under the site's private files and handed to the course importer. A course
 	whose name already exists is left alone, so a later migrate changes nothing.
 	"""
-	if not os.path.isdir(DATA_DIR):
-		return
-
-	frappe.set_user("Administrator")
-
-	for folder in sorted(os.listdir(DATA_DIR)):
+	for folder in V2_COURSES:
+		# nosemgrep: frappe-security-file-traversal - folder comes from the fixed V2_COURSES tuple above, never from input
 		source = os.path.join(DATA_DIR, folder)
-		if not os.path.isdir(source):
-			continue
-
-		with open(os.path.join(source, "course.json"), encoding="utf-8") as f:
+		with open(os.path.join(source, "course.json"), encoding="utf-8") as f:  # nosemgrep: frappe-security-file-traversal - fixed path, see above
 			course_name = json.load(f)["name"]
 		if frappe.db.exists("LMS Course", course_name):
 			continue
