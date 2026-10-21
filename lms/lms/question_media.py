@@ -10,7 +10,7 @@ from html.parser import HTMLParser
 from urllib.parse import unquote, urlparse
 
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
-MAX_IMAGES_PER_QUESTION = 5
+MAX_IMAGES_PER_QUESTION = 10
 ALLOWED_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp")
 FILE_URL_PREFIXES = ("/files/", "/private/files/")
 RESERVED_OPTION_KEY = re.compile(r"\[image:\d+\]")
