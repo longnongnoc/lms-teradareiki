@@ -17,8 +17,11 @@ Infrastructure (EC2, S3, SSM parameters) lives in `infra/`.
 2. The `Deploy LMS` workflow runs the same script through SSM Run Command, on dispatch
    or on push to develop/main/feature/deploy-aws-terraform touching `deploy/**`.
 3. The script reads `/opt/lms/.env`, checks out the ref, writes `/opt/lms/secrets.env`
-   from SSM (mode 600), pulls images, runs `up -d`, waits up to 10 minutes for
-   `/api/method/ping`, and runs `bench migrate` when the image changed.
+   from SSM (mode 600), pulls images, and, when the pulled image differs from the
+   last deployed one (`/opt/lms/deployed-image-id`) and the backend is running, runs
+   `backup.sh` before touching the stack (a failed backup aborts the deploy). It then
+   runs `up -d`, waits up to 10 minutes for `/api/method/ping`, and runs
+   `bench migrate` when the image changed.
 4. The site is created by `create-site`. If the site already exists, it installs any
    missing `payments` or `lms` app, so a partially created site is repaired.
 
