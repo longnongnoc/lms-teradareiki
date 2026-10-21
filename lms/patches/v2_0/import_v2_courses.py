@@ -28,7 +28,9 @@ def execute():
 	for folder in V2_COURSES:
 		# nosemgrep: frappe-security-file-traversal - folder comes from the fixed V2_COURSES tuple above, never from input
 		source = os.path.join(DATA_DIR, folder)
-		with open(os.path.join(source, "course.json"), encoding="utf-8") as f:  # nosemgrep: frappe-security-file-traversal - fixed path, see above
+		course_json = os.path.join(source, "course.json")
+		# nosemgrep: frappe-security-file-traversal - fixed path, see above
+		with open(course_json, encoding="utf-8") as f:
 			course_name = json.load(f)["name"]
 		if frappe.db.exists("LMS Course", course_name):
 			continue
