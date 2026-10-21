@@ -41,7 +41,7 @@ The DB root password only takes effect when the `db-data` volume is first create
 
 ## LMS image
 
-The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/18phongnguyen/terada-lms`, from the fork https://github.com/18PhongNguyen/terada-lms. The GHCR package must be public so the instance can pull it anonymously.
+The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/18phongnguyen/terada-lms`, from the fork https://github.com/18PhongNguyen/terada-lms. The GHCR package is private: the instance pulls with its own registry credentials, and `Deploy LMS` checks that a tag exists by logging in with the job token (`packages: read`).
 
 Build with `frappe_branch` and `payments_ref` set to `develop` (the workflow defaults). The fork's frontend imports `useDataImport` and `DataImportWizard` from `@framework/ui`, which exist only on frappe `develop`; on `version-16` `vite build` fails with `"useDataImport" is not exported by node_modules/@framework/ui/src/components/DataImport/index.ts`.
 

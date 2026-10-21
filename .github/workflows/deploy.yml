@@ -38,6 +38,9 @@ jobs:
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
     # Concurrency is at job level so a skipped run (failed or dispatched build) does
     # not enter the group and replace a pending deploy.
     concurrency:
@@ -105,13 +108,17 @@ jobs:
 
       - name: Check the image exists
         if: env.DEPLOY_IMAGE_TAG != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # deploy.sh writes the tag into /opt/lms/.env before pulling, so a missing tag would
-          # leave .env pointing at an image that does not exist. Check anonymously, the way the
-          # instance pulls (the GHCR package is public).
+          # leave .env pointing at an image that does not exist. The GHCR package is private:
+          # log in with the job token (packages: read), which can read it because this
+          # repository's Build LMS image workflow publishes it.
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           image="ghcr.io/${owner}/terada-lms:${DEPLOY_IMAGE_TAG}"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin > /dev/null
           if ! docker manifest inspect "$image" > /dev/null; then
             echo "::error::$image not found in GHCR" >&2
             exit 1
