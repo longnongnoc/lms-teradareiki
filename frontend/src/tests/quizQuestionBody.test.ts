@@ -256,10 +256,45 @@ describe('QuizQuestionBody review', () => {
 		expect(chips).toHaveLength(2)
 		expect(chips[0].text()).toContain('圧縮機')
 		expect(chips[0].text()).toContain('Your answer, correct')
-		expect(chips[0].text()).toContain('2 of 2')
+		expect(chips[0].text()).toContain('(2 of 2 marks)')
 		expect(chips[1].text()).toContain('ポンプ')
 		expect(chips[1].text()).toContain('Your answer, incorrect')
-		expect(chips[1].text()).toContain('0 of 1')
+		expect(chips[1].text()).toContain('(0 of 1 marks)')
+		wrapper.unmount()
+	})
+
+	it('leaves the score off a right blank worth one mark, and puts it on any other', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[1]] / [[2]] / [[3]]</p>',
+			fillBlank: true,
+			review: true,
+			results: {
+				'1': { ...results['1'], marks: 1, marks_out_of: 1 },
+				'2': results['2'],
+				'3': { ...results['1'], blank_id: '3', marks: 3, marks_out_of: 3 },
+			},
+		})
+		const chips = wrapper.findAll('[data-testid="blank-result"]')
+		expect(chips[0].text()).not.toContain('marks')
+		expect(chips[1].text()).toContain('0 of 1 marks')
+		expect(chips[2].text()).toContain('3 of 3 marks')
+		wrapper.unmount()
+	})
+
+	it('draws a right and a wrong blank in their own colours and icons', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[1]] / [[2]]</p>',
+			fillBlank: true,
+			review: true,
+			results,
+		})
+		const [right, wrong] = wrapper.findAll('[data-testid="blank-result"]')
+		expect(right.find('.lucide-check-circle').classes()).toContain(
+			'text-ink-green-6'
+		)
+		expect(right.classes()).toContain('border-outline-green-3')
+		expect(wrong.find('.lucide-x-circle').exists()).toBe(true)
+		expect(wrong.classes()).toContain('border-outline-red-3')
 		wrapper.unmount()
 	})
 
@@ -317,6 +352,53 @@ describe('QuizQuestionBody review', () => {
 			results: { '2': { ...results['2'], answer: '' } },
 		})
 		expect(wrapper.text()).toContain('No answer')
+		wrapper.unmount()
+	})
+
+	it('draws an empty blank neutral and dashed, not as a red cross', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[2]]</p>',
+			fillBlank: true,
+			review: true,
+			results: { '2': { ...results['2'], answer: '   ' } },
+		})
+		const chip = wrapper.get('[data-testid="blank-result"]')
+		expect(chip.classes()).toEqual(
+			expect.arrayContaining(['border-dashed', 'bg-surface-gray-1'])
+		)
+		expect(chip.classes()).not.toContain('border-outline-red-3')
+		expect(chip.find('.lucide-circle-dashed').exists()).toBe(true)
+		expect(chip.find('.lucide-x-circle').exists()).toBe(false)
+		expect(chip.text()).toContain('No answer')
+		expect(chip.text()).not.toContain('Your answer, incorrect')
+		expect(chip.text()).toContain('Accepted answers: 凝縮器 / condenser')
+		wrapper.unmount()
+	})
+})
+
+describe('QuizQuestionBody empty blanks', () => {
+	it('flags only the empty inputs once asked to, and focuses the first of them', async () => {
+		const wrapper = await mountBody({
+			html: '<p>[[1]] [[2]] [[3]]</p>',
+			fillBlank: true,
+			answers: { '2': 'ループ' },
+			flagEmpty: true,
+		})
+		const inputs = wrapper.findAll('input')
+		expect(inputs.map((i) => i.classes().includes('border-outline-amber-5'))).toEqual(
+			[true, false, true]
+		)
+		expect(inputs[1].attributes('aria-invalid')).toBeUndefined()
+
+		;(wrapper.vm as any).focusFirstEmpty()
+		expect(document.activeElement).toBe(inputs[0].element)
+		wrapper.unmount()
+	})
+
+	it('flags nothing until asked', async () => {
+		const wrapper = await mountBody({ html: '<p>[[1]]</p>', fillBlank: true })
+		expect(wrapper.get('input').classes()).not.toContain('border-outline-amber-5')
+		expect(wrapper.get('input').classes()).toContain('border-outline-gray-5')
 		wrapper.unmount()
 	})
 })

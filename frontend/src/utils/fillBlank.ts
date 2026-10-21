@@ -211,6 +211,13 @@ export const hasFillBlankAnswer = (
 		(value) => typeof value === 'string' && value.trim() !== ''
 	)
 
+// How many of the blanks have text, to tell a question left half done from one
+// finished.
+export const countFilledBlanks = (
+	blankIds: string[],
+	answers?: Record<string, string> | null
+): number => blankIds.filter((id) => (answers?.[id] ?? '').trim() !== '').length
+
 // {"1": "text", ...} for every blank the question has, so the server sees an
 // empty string for a blank left alone rather than a missing key.
 export const serializeFillBlankAnswers = (

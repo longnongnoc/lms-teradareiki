@@ -6,6 +6,7 @@ import {
 	blanksPayload,
 	blankToken,
 	duplicateBlankIds,
+	countFilledBlanks,
 	extractBlankIds,
 	hasFillBlankAnswer,
 	hasNearMissMarker,
@@ -309,6 +310,14 @@ describe('payload build and parse', () => {
 })
 
 describe('learner answers', () => {
+	it('counts the blanks that have text, ignoring spaces and ids it was not asked about', () => {
+		const ids = ['1', '2', '3']
+		expect(countFilledBlanks(ids, { '1': 'a', '2': '  ', '9': 'x' })).toBe(1)
+		expect(countFilledBlanks(ids, { '1': 'a', '2': 'b', '3': 'c' })).toBe(3)
+		expect(countFilledBlanks(ids, null)).toBe(0)
+		expect(countFilledBlanks([], { '1': 'a' })).toBe(0)
+	})
+
 	it('counts a question as answered when any blank has non-whitespace text', () => {
 		expect(hasFillBlankAnswer({ '1': '', '2': '  ' })).toBe(false)
 		expect(hasFillBlankAnswer({ '1': '', '2': 'x' })).toBe(true)

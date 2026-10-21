@@ -25,6 +25,27 @@ describe('FeedbackBanner', () => {
 		expect(wrapper.find('.lucide-x-circle').exists()).toBe(true)
 	})
 
+	it('renders the amber/partial variant with its own icon', () => {
+		const wrapper = mount(FeedbackBanner, {
+			props: { correct: false, partial: true },
+			slots: { default: 'Partly correct, 1 of 3 marks' },
+		})
+		expect(wrapper.classes().join(' ')).toContain('amber')
+		expect(wrapper.classes().join(' ')).not.toContain('red')
+		expect(wrapper.find('.lucide-contrast').exists()).toBe(true)
+		expect(wrapper.find('.lucide-x-circle').exists()).toBe(false)
+		expect(wrapper.get('.lucide-contrast').attributes('aria-hidden')).toBe(
+			'true'
+		)
+	})
+
+	it('lets correct win over partial', () => {
+		const wrapper = mount(FeedbackBanner, {
+			props: { correct: true, partial: true },
+		})
+		expect(wrapper.classes().join(' ')).toContain('green')
+	})
+
 	// Guards: a live role or exposed icon here doubles the quiz announcement.
 	// Introduced in #2823; test added with the a11y audit remediation.
 	it('stays presentational: no live role, icon hidden from assistive tech', () => {

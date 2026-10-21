@@ -11,24 +11,16 @@
 			data-testid="blank-result"
 			:data-blank-id="entry.id"
 			class="inline-flex flex-wrap items-center gap-x-1.5 rounded-4 border px-1.5 py-0.5 align-middle text-base font-normal text-ink-gray-9"
-			:class="
-				resultFor(entry.id)?.is_correct
-					? 'border-outline-green-3 bg-surface-green-1'
-					: 'border-outline-red-3 bg-surface-red-1'
-			"
+			:class="RESULT_STYLE[stateFor(entry.id)].chip"
 		>
 			<span
-				:class="
-					resultFor(entry.id)?.is_correct
-						? 'lucide-check-circle text-ink-green-6'
-						: 'lucide-x-circle text-ink-red-5'
-				"
+				:class="RESULT_STYLE[stateFor(entry.id)].icon"
 				class="size-4 shrink-0"
 				aria-hidden="true"
 			/>
-			<span class="sr-only">
+			<span v-if="stateFor(entry.id) !== 'empty'" class="sr-only">
 				{{
-					resultFor(entry.id)?.is_correct
+					stateFor(entry.id) === 'correct'
 						? __('Your answer, correct')
 						: __('Your answer, incorrect')
 				}}
@@ -37,12 +29,13 @@
 				{{ answerFor(entry.id) }}
 			</span>
 			<span v-else class="italic text-ink-gray-6">{{ __('No answer') }}</span>
+			<!-- A blank worth one mark that was right says nothing more than its tick. -->
 			<span
-				v-if="resultFor(entry.id)"
+				v-if="showScore(entry.id)"
 				class="text-sm tabular-nums text-ink-gray-6"
 			>
 				({{
-					__('{0} of {1}').format(
+					__('{0} of {1} marks').format(
 						resultFor(entry.id)?.marks,
 						resultFor(entry.id)?.marks_out_of
 					)
@@ -63,8 +56,13 @@
 			v-else
 			type="text"
 			data-blank-input
-			class="h-9 rounded-4 border border-outline-gray-5 bg-surface-gray-1 px-2 align-middle text-lg font-normal text-ink-gray-9 placeholder:text-ink-gray-4 focus-visible:border-outline-gray-8 focus-visible:ring-2 focus-visible:ring-outline-gray-3 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:text-base"
-			:class="entry.inCell ? 'w-full min-w-[5rem]' : 'w-36 max-w-full'"
+			class="h-9 rounded-4 border px-2 align-middle text-lg font-normal text-ink-gray-9 placeholder:text-ink-gray-4 focus-visible:border-outline-gray-8 focus-visible:ring-2 focus-visible:ring-outline-gray-3 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-60 sm:h-7 sm:text-base"
+			:class="[
+				entry.inCell ? 'w-full min-w-[5rem]' : 'w-36 max-w-full',
+				isFlagged(entry.id)
+					? 'border-outline-amber-5 bg-surface-amber-1'
+					: 'border-outline-gray-5 bg-surface-gray-1',
+			]"
 			autocomplete="off"
 			autocapitalize="off"
 			autocorrect="off"
@@ -72,6 +70,7 @@
 			:enterkeyhint="index === slots.length - 1 ? 'done' : 'next'"
 			:aria-label="__('Blank {0} of {1}').format(index + 1, slots.length)"
 			:aria-describedby="describedby || undefined"
+			:aria-invalid="isFlagged(entry.id) || undefined"
 			:disabled="disabled"
 			:value="answerFor(entry.id)"
 			@input="onInput(entry.id, $event)"
@@ -113,6 +112,8 @@ const props = withDefaults(
 		results?: Record<string, BlankResult> | null
 		// The id of the line that tells the learner what to do, read with each input.
 		describedby?: string
+		// Mark the blanks still empty, once the learner has tried to check them.
+		flagEmpty?: boolean
 	}>(),
 	{
 		html: '',
@@ -122,6 +123,7 @@ const props = withDefaults(
 		answers: () => ({}),
 		results: null,
 		describedby: '',
+		flagEmpty: false,
 	}
 )
 const emit = defineEmits<{
@@ -138,6 +140,37 @@ const zoom = ref<{ url: string; alt: string } | null>(null)
 const answerFor = (id: string): string =>
 	props.answers?.[id] ?? props.results?.[id]?.answer ?? ''
 const resultFor = (id: string): BlankResult | undefined => props.results?.[id]
+
+// A blank left empty is neither right nor wrong to the learner, so it is shown
+// apart from a wrong answer: neutral and dashed, not a red cross.
+type ResultState = 'correct' | 'wrong' | 'empty'
+const stateFor = (id: string): ResultState => {
+	if (resultFor(id)?.is_correct) return 'correct'
+	return answerFor(id).trim() ? 'wrong' : 'empty'
+}
+
+const RESULT_STYLE: Record<ResultState, { chip: string; icon: string }> = {
+	correct: {
+		chip: 'border-outline-green-3 bg-surface-green-1',
+		icon: 'lucide-check-circle text-ink-green-6',
+	},
+	wrong: {
+		chip: 'border-outline-red-3 bg-surface-red-1',
+		icon: 'lucide-x-circle text-ink-red-5',
+	},
+	empty: {
+		chip: 'border-dashed border-outline-gray-4 bg-surface-gray-1',
+		icon: 'lucide-circle-dashed text-ink-gray-6',
+	},
+}
+
+const showScore = (id: string): boolean => {
+	const result = resultFor(id)
+	return !!result && (result.marks_out_of > 1 || !result.is_correct)
+}
+
+const isFlagged = (id: string): boolean =>
+	props.flagEmpty && !answerFor(id).trim()
 
 const replaceTokens = (fragment: DocumentFragment): Slot[] => {
 	const doc = fragment.ownerDocument
@@ -261,9 +294,20 @@ const onCompositionEnd = (id: string, event: Event): void => {
 	emit('update:blank', id, input.value)
 }
 
-// Enter moves to the next blank. Never while an IME is composing: that Enter
-// confirms the conversion, and keyCode 229 covers browsers that report it
-// after compositionend.
+// The first blank still empty, for an owner that refuses to go on without it.
+const focusFirstEmpty = (): void => {
+	const inputs = Array.from(
+		host.value?.querySelectorAll<HTMLInputElement>('input[data-blank-input]') ??
+			[]
+	)
+	inputs.find((input) => !input.value.trim())?.focus()
+}
+
+defineExpose({ focusFirstEmpty })
+
+// Enter moves to the next blank, and from the last one tells the owner so it can
+// move on. Never while an IME is composing: that Enter confirms the conversion,
+// and keyCode 229 covers browsers that report it after compositionend.
 const onEnter = (event: KeyboardEvent): void => {
 	if (event.isComposing || event.keyCode === 229) return
 	event.preventDefault()
