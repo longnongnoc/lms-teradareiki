@@ -1,0 +1,62 @@
+{
+    "name": "10052 \u4fee\u4e86\u30c6\u30b9\u30c8",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:19.150433",
+    "modified": "2026-10-20 18:09:20.264043",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u4fee\u4e86\u30c6\u30b9\u30c8",
+    "course": "v2-4",
+    "course_title": "\u7a7a\u8abf\u30fb\u51b7\u51cd\u51b7\u8535\u306e\u57fa\u790e [v2]",
+    "is_scorm_package": 0,
+    "scorm_package": null,
+    "scorm_package_path": null,
+    "manifest_file": null,
+    "launch_file": null,
+    "doctype": "Course Chapter",
+    "lessons": [
+        {
+            "name": "nc22sadbkg",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:19.150433",
+            "modified": "2026-10-20 18:09:20.264043",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "lesson": "10148 \u5168\u4f53\u307e\u3068\u3081\uff08\u7a7a\u8abf\u30fb\u51b7\u51cd\u51b7\u8535\uff09",
+            "parent": "10052 \u4fee\u4e86\u30c6\u30b9\u30c8",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "nc2u34jl6e",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:19.150433",
+            "modified": "2026-10-20 18:09:20.264043",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 2,
+            "lesson": "10149 \u7b46\u8a18\u30c6\u30b9\u30c8\uff08\u78ba\u8a8d\u30c6\u30b9\u30c8\u30fb\u5408\u8a08115\u70b9\uff09",
+            "parent": "10052 \u4fee\u4e86\u30c6\u30b9\u30c8",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        },
+        {
+            "name": "nc2mho4ek6",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:19.150433",
+            "modified": "2026-10-20 18:09:20.264043",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 3,
+            "lesson": "10150 \u5b9f\u6280\u30fb\u8a18\u8ff0\u30c6\u30b9\u30c8\uff08\u8b1b\u5e2b\u304c\u63a1\u70b9\uff09",
+            "parent": "10052 \u4fee\u4e86\u30c6\u30b9\u30c8",
+            "parentfield": "lessons",
+            "parenttype": "Course Chapter",
+            "doctype": "Lesson Reference"
+        }
+    ]
+}

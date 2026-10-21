@@ -1,0 +1,41 @@
+{
+    "name": "9799 \u4fee\u4e86\u30c6\u30b9\u30c8\uff082\uff09\uff1a\u611f\u96fb\u30fb\u9178\u6b20\u30fb\u71b1\u4e2d\u75c7\uff0825\u70b9\uff09",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:09.828281",
+    "modified": "2026-10-20 18:09:09.828281",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u4fee\u4e86\u30c6\u30b9\u30c8\uff082\uff09\uff1a\u611f\u96fb\u30fb\u9178\u6b20\u30fb\u71b1\u4e2d\u75c7\uff0825\u70b9\uff09",
+    "include_in_preview": 1,
+    "is_scorm_package": 0,
+    "chapter": "9715 \u4fee\u4e86\u30c6\u30b9\u30c8",
+    "course": "v2",
+    "content": "{\"time\":1792487228738,\"blocks\":[{\"id\":\"ebc17e3cda\",\"type\":\"header\",\"data\":{\"text\":\"<span style=\\\"font-size:26px;font-weight:700;line-height:1.4;display:block;margin-top:26px;padding-bottom:8px;border-bottom:2px solid rgba(128, 128, 128, 0.35)\\\">\\u4fee\\u4e86\\u30c6\\u30b9\\u30c8\\uff082\\uff09\\uff1a\\u611f\\u96fb\\u30fb\\u9178\\u6b20\\u30fb\\u71b1\\u4e2d\\u75c7\\uff0825\\u70b9\\uff09</span>\",\"level\":2}},{\"id\":\"ca69b6b2b0\",\"type\":\"paragraph\",\"data\":{\"text\":\"<span style=\\\"display:block;font-size:16px;line-height:1.85\\\">25\\u70b9\\u6e80\\u70b9\\u300170%\\u4ee5\\u4e0a\\u3067\\u5408\\u683c\\u3067\\u3059\\u3002\\u8b1b\\u5ea7\\u306e\\u5185\\u5bb9\\u304b\\u3089\\u51fa\\u984c\\u3055\\u308c\\u307e\\u3059\\u3002</span>\"}},{\"id\":\"3f798d2969\",\"type\":\"quiz\",\"data\":{\"quiz\":\"2-25-3\"}}],\"version\":\"2.30.0\"}",
+    "body": null,
+    "instructor_content": null,
+    "instructor_notes": null,
+    "youtube": null,
+    "quiz_id": null,
+    "question": null,
+    "file_type": "",
+    "doctype": "Course Lesson",
+    "assessments": [
+        {
+            "name": "n8q1is5b2h",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:09.832166",
+            "modified": "2026-10-20 18:09:09.832166",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "assessment_type": "LMS Quiz",
+            "assessment_name": "2-25-3",
+            "instructor_only": 0,
+            "parent": "9799 \u4fee\u4e86\u30c6\u30b9\u30c8\uff082\uff09\uff1a\u611f\u96fb\u30fb\u9178\u6b20\u30fb\u71b1\u4e2d\u75c7\uff0825\u70b9\uff09",
+            "parentfield": "assessments",
+            "parenttype": "Course Lesson",
+            "doctype": "LMS Lesson Assessment"
+        }
+    ]
+}
