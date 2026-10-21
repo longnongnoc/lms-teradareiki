@@ -829,6 +829,7 @@ def create_question_doc(zip_file, file):
 				{"blank_id": row.get("blank_id"), "answers": row.get("answers"), "marks": row.get("marks")}
 				for row in question_data["blanks"]
 			]
+		convert_legacy_fill_blank(question_data)
 		doc = frappe.new_doc("LMS Question")
 		doc.update(question_data)
 		doc.insert(ignore_permissions=True)
