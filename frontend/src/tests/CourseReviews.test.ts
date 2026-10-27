@@ -178,11 +178,25 @@ describe('CourseReviews list rendering', () => {
 	})
 
 	it('summarizes the rating and pluralizes the count', async () => {
-		currentReviews = [review({ name: 'only' })]
-		const wrapper = mountReviews({ avg_rating: '4.5' })
+		currentReviews = [
+			review({ name: 'a', rating: 5 }),
+			review({ name: 'b', rating: 4 }),
+		]
+		// The stored course rating lags behind new reviews (an hourly job), so the
+		// header averages the reviews it has rather than trusting this stale 0.
+		const wrapper = mountReviews({ avg_rating: '0' })
 		await flushPromises()
 		const header = wrapper.text()
 		expect(header).toContain('4.5')
+		expect(header).toContain('2 user ratings')
+	})
+
+	it('uses the singular for one rating', async () => {
+		currentReviews = [review({ name: 'only' })]
+		const wrapper = mountReviews({ avg_rating: '0' })
+		await flushPromises()
+		const header = wrapper.text()
+		expect(header).toContain('5')
 		expect(header).toContain('1 user rating')
 		expect(header).not.toContain('user ratings')
 	})

@@ -237,6 +237,17 @@ const userDropdownOptions = computed(() => {
 					},
 				},
 				{
+					// Frappe's own page: asks for the old password, then the new one.
+					icon: 'lucide-key-round',
+					label: __('Change Password'),
+					onClick: () => {
+						window.location.href = '/update-password'
+					},
+					condition: () => {
+						return isLoggedIn
+					},
+				},
+				{
 					icon: 'lucide-log-out',
 					label: 'Log out',
 					onClick: () => {

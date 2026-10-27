@@ -120,4 +120,24 @@ describe('highlightText', () => {
 
 		expect(document.querySelectorAll('.highlighted-text')).toHaveLength(0)
 	})
+
+	it('highlights a selection that runs across paragraphs and inline tags', () => {
+		document.body.innerHTML = `
+			<div id="editor">
+				<p>First <b>bold</b> line ends here.</p>
+				<p>Second line starts here.</p>
+			</div>`
+
+		highlightText({
+			...note,
+			highlighted_text: 'bold line ends here.\nSecond line',
+		})
+
+		const highlights = document.querySelectorAll('.highlighted-text')
+		expect(Array.from(highlights, (el) => el.textContent)).toEqual([
+			'bold',
+			' line ends here.',
+			'Second line',
+		])
+	})
 })
