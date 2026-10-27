@@ -84,6 +84,7 @@
 						:duration="quiz.data.duration"
 						:passingPercentage="quiz.data.passing_percentage"
 						:attemptsLeft="attemptsLeft"
+						:totalMarks="quiz.data.total_marks || null"
 					/>
 					<QuizResultSummary v-if="!preview" :quiz="quiz.data.name" />
 

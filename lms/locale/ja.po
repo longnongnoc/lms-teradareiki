@@ -51990,3 +51990,7 @@ msgstr "クイズを複製できませんでした"
 #: lms/lms/doctype/lms_quiz/lms_quiz.py
 msgid "You are not allowed to duplicate this quiz."
 msgstr "このクイズを複製する権限がありません。"
+
+#: frontend/src/components/Assessment/QuizStats.vue
+msgid "Total marks"
+msgstr "満点"

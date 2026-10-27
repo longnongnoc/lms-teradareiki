@@ -141,3 +141,22 @@ describe('Quiz intro: instructions', () => {
 		}
 	)
 })
+
+describe('Quiz intro: total marks', () => {
+	it('shows what the quiz is scored out of beside the question count', async () => {
+		state.response = quizResponse()
+		const wrapper = await mountQuiz()
+
+		expect(wrapper.find('[data-testid="quiz-total-marks"]').text()).toBe('5')
+		expect(wrapper.text()).toContain('Questions2')
+	})
+
+	it('draws no marks cell for a quiz without a total', async () => {
+		state.response = quizResponse({ total_marks: 0 })
+		const wrapper = await mountQuiz()
+
+		expect(wrapper.find('[data-testid="quiz-total-marks"]').exists()).toBe(
+			false
+		)
+	})
+})

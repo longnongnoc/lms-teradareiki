@@ -1,11 +1,24 @@
 <template>
 	<dl
-		class="grid grid-cols-2 gap-px overflow-hidden rounded-6 border border-outline-gray-2 bg-surface-gray-3 sm:grid-cols-4"
+		class="grid grid-cols-2 gap-px overflow-hidden rounded-6 border border-outline-gray-2 bg-surface-gray-3"
+		:class="totalMarks != null ? 'sm:grid-cols-5' : 'sm:grid-cols-4'"
 	>
 		<div class="space-y-0.5 bg-surface-base px-3 py-2">
 			<dt class="text-xs text-ink-gray-6">{{ __('Questions') }}</dt>
 			<dd class="text-base font-medium text-ink-gray-9">
 				{{ questions }}
+			</dd>
+		</div>
+		<div
+			v-if="totalMarks != null"
+			class="space-y-0.5 bg-surface-base px-3 py-2"
+		>
+			<dt class="text-xs text-ink-gray-6">{{ __('Total marks') }}</dt>
+			<dd
+				data-testid="quiz-total-marks"
+				class="text-base font-medium text-ink-gray-9"
+			>
+				{{ totalMarks }}
 			</dd>
 		</div>
 		<div class="space-y-0.5 bg-surface-base px-3 py-2">
@@ -20,7 +33,11 @@
 				{{ passingPercentage || 0 }}%
 			</dd>
 		</div>
-		<div class="space-y-0.5 bg-surface-base px-3 py-2">
+		<!-- Five cells leave the last alone on a two-column phone row. -->
+		<div
+			class="space-y-0.5 bg-surface-base px-3 py-2"
+			:class="totalMarks != null ? 'col-span-2 sm:col-span-1' : ''"
+		>
 			<dt class="text-xs text-ink-gray-6">{{ __('Attempts') }}</dt>
 			<dd class="text-base font-medium text-ink-gray-9">
 				{{ attemptsValue }}
@@ -40,6 +57,8 @@ const props = defineProps<{
 	passingPercentage?: number
 	attemptsLeft?: number | null
 	maxAttempts?: number | null
+	// Left out, the cell is not drawn: only the learner intro passes it.
+	totalMarks?: number | null
 }>()
 
 const attemptsValue = computed(() => {

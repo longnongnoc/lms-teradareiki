@@ -37,6 +37,8 @@ export interface QuizDetails {
 	title: string
 	// Rich text shown on the intro screen, before Start.
 	instructions?: string | null
+	// Server-computed: what one attempt is scored out of.
+	total_marks?: number
 	duration: number
 	questions?: QuizQuestionRow[]
 	passing_percentage?: number
