@@ -267,6 +267,28 @@
 						@blur="createIfNamed"
 						@keydown.enter.prevent="createIfNamed"
 					/>
+					<!-- Learners read this before Start. Its images are public, as
+					     private editor uploads would not reach a learner here. -->
+					<div v-if="!isNew" class="space-y-1.5">
+						<div
+							id="quiz-instructions-label"
+							class="text-xs text-ink-gray-5"
+						>
+							{{ __('Instructions') }}
+						</div>
+						<RichTextEditor
+							data-testid="quiz-instructions-editor"
+							ariaLabelledby="quiz-instructions-label"
+							:content="doc.instructions"
+							@change="(val) => (doc.instructions = val)"
+							:editable="!locked"
+							:fixedMenu="true"
+							:uploadArgs="{ private: false }"
+							:placeholder="__('Shown to learners before they start the quiz')"
+							minHeight="5rem"
+							maxHeight="18rem"
+						/>
+					</div>
 					<FormControl
 						type="number"
 						v-model="doc.max_attempts"
@@ -456,6 +478,7 @@ import Draggable from 'vuedraggable'
 import QuestionCard from '@/components/Quiz/QuestionCard.vue'
 import QuestionBankPanel from '@/components/Quiz/QuestionBankPanel.vue'
 import Quiz from '@/components/Quiz.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
 import {
 	allowedUiTypesFor,
 	allowedQuestionTypesFor,

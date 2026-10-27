@@ -340,6 +340,17 @@ vi.mock('@/components/Quiz.vue', () => ({
 	},
 }))
 
+// The real editor pulls in tiptap and frappe-ui's upload composable, neither of
+// which this file mocks. A textarea keeps the content/change contract.
+vi.mock('@/components/RichTextEditor.vue', () => ({
+	default: {
+		name: 'RichTextEditor',
+		props: ['content', 'editable'],
+		emits: ['change'],
+		template: `<textarea :value="content" :readonly="editable === false" @input="$emit('change', $event.target.value)" />`,
+	},
+}))
+
 vi.mock('@/components/Quiz/QuestionBankPanel.vue', () => ({
 	default: {
 		name: 'QuestionBankPanel',
@@ -1052,5 +1063,20 @@ describe('QuizForm: deleting the quiz', () => {
 			'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
 		)
 		expect(toast.success).not.toHaveBeenCalled()
+	})
+})
+
+describe('QuizForm: instructions', () => {
+	const editor = (wrapper: any) =>
+		wrapper.find('[data-testid="quiz-instructions-editor"]')
+
+	it('saves what the author types into the instructions', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await editor(wrapper).setValue('<p>Read each question twice.</p>')
+		await pressSave()
+
+		expect(setValueSubmit.mock.calls.at(-1)![0].instructions).toBe(
+			'<p>Read each question twice.</p>'
+		)
 	})
 })

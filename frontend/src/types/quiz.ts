@@ -35,6 +35,8 @@ export interface QuizQuestionRow {
 export interface QuizDetails {
 	name: string
 	title: string
+	// Rich text shown on the intro screen, before Start.
+	instructions?: string | null
 	duration: number
 	questions?: QuizQuestionRow[]
 	passing_percentage?: number

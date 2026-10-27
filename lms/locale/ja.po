@@ -51918,3 +51918,7 @@ msgstr "このクイズを完全に削除します。問題は問題バンクに
 #: frontend/src/pages/Forms/QuizForm.vue
 msgid "This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted."
 msgstr "このクイズには提出物または実技点がすでにあるため削除できません。何も削除されていません。"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Shown to learners before they start the quiz"
+msgstr "受講者がクイズを開始する前に表示されます"
