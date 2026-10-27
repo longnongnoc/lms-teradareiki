@@ -40,7 +40,6 @@ from lms.lms.doctype.lms_question.lms_question import (
 )
 from lms.lms.fill_blank import apply_negative_marking, grade_fill_blank, parse_submitted_answer
 from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
-from lms.lms.quiz_results import _can_review, _is_staff
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
 	generate_slug,
@@ -949,6 +948,9 @@ def get_fill_blank_review(submission: str):
 		row.member == frappe.session.user or frappe.has_permission("LMS Quiz Submission", "read", submission)
 	):
 		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
+
+	# Imported here: quiz_results imports from this module.
+	from lms.lms.quiz_results import _can_review, _is_staff
 
 	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
 	# Staff on their own submission of a quiz they do not review read it as a learner.
