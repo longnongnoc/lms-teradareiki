@@ -70,3 +70,27 @@ main#main-content {
 .prose {
 	--tw-prose-bullets: var(--ink-gray-4);
 }
+
+/* Framed images (components/editor/imageFrame.ts): one fixed 200 x 150 box per picture, the
+   picture kept whole on a light backdrop, so images of different sizes line up in a table.
+   `img[data-frame]` is the saved HTML (question view, lessons); the width/height selector is the
+   editor's node view, where the <img> cannot carry the attribute. */
+img[data-frame='true'],
+.ProseMirror img[width='200'][height='150'] {
+	max-width: 100%;
+	object-fit: contain;
+	background: var(--surface-gray-2);
+	border-radius: 0.5rem;
+}
+
+img[data-frame='true'] {
+	width: 200px;
+	height: auto;
+	aspect-ratio: 4 / 3;
+}
+
+/* The editor's own image rules reset the height to auto; keep the box. */
+.ProseMirror img[width='200'][height='150'] {
+	width: 200px !important;
+	height: 150px !important;
+}
