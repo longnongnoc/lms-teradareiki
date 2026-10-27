@@ -150,7 +150,10 @@ vi.mock('@framework/ui/telemetry/index', () => ({
 	useTelemetry: () => ({ capture: vi.fn() }),
 }))
 
+const callMock = vi.hoisted(() => vi.fn())
+
 vi.mock('frappe-ui', () => ({
+	call: callMock,
 	createResource: createResourceMock,
 	createDocumentResource: createDocumentResourceMock,
 	usePageMeta: vi.fn(),
@@ -1078,5 +1081,29 @@ describe('QuizForm: instructions', () => {
 		expect(setValueSubmit.mock.calls.at(-1)![0].instructions).toBe(
 			'<p>Read each question twice.</p>'
 		)
+	})
+})
+
+describe('QuizForm: duplicate', () => {
+	it('copies the quiz on the server and opens the copy', async () => {
+		callMock.mockResolvedValueOnce('QZ-0002')
+		const { wrapper, router } = await mountForm([CHOICE_ROW])
+		await headerButton(wrapper, 'Duplicate')!.trigger('click')
+		await flushPromises()
+
+		expect(callMock).toHaveBeenCalledWith(
+			'lms.lms.doctype.lms_quiz.lms_quiz.duplicate_quiz',
+			{ quiz: 'QZ-0001' }
+		)
+		expect(router.currentRoute.value.params.quizID).toBe('QZ-0002')
+	})
+
+	it('waits for unsaved changes before copying', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await makeDirty(wrapper)
+
+		expect(
+			headerButton(wrapper, 'Duplicate')!.attributes('disabled')
+		).toBeDefined()
 	})
 })

@@ -65,6 +65,16 @@
 		<template #selection-actions="{ selections }">
 			<span class="sr-only" role="status">{{ deleteAnnouncement }}</span>
 			<Button
+				v-if="selections.size === 1 && !readOnlyMode"
+				variant="ghost"
+				:label="__('Duplicate')"
+				@click="duplicateQuiz([...selections][0], router)"
+			>
+				<template #icon>
+					<span class="lucide-copy size-4" aria-hidden="true" />
+				</template>
+			</Button>
+			<Button
 				variant="ghost"
 				:label="deleting ? __('Deleting…') : __('Delete')"
 				:aria-disabled="deleting"
@@ -92,6 +102,7 @@ import { computed, inject, onMounted, ref, watch } from 'vue'
 
 import { sessionStore } from '@/stores/session'
 import { useBulkDeleteAction } from '@/utils/bulkDelete'
+import { duplicateQuiz } from '@/utils/quizDuplicate'
 
 const { brand } = sessionStore()
 const user = inject('$user')

@@ -29,6 +29,16 @@
 						:label="__('Submissions')"
 						@click="goToSubmissions"
 					/>
+					<!-- The copy is made from the saved quiz, so unsaved work waits. -->
+					<HeaderButton
+						v-if="!locked"
+						variant="subtle"
+						icon="lucide-copy"
+						:label="__('Duplicate')"
+						:loading="duplicating"
+						:disabled="hasUnsavedWork"
+						@click="duplicate"
+					/>
 					<HeaderButton
 						v-if="!locked"
 						variant="subtle"
@@ -519,6 +529,7 @@ import { joinSentences } from '@/utils/quizSummary'
 import { getLmsRoute } from '@/utils/basePath'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import { useCanWrite } from '@/composables/useCanWrite'
+import { duplicateQuiz } from '@/utils/quizDuplicate'
 
 const { brand } = sessionStore()
 const rightPanel = ref('settings') // 'settings' | 'bank'
@@ -568,6 +579,13 @@ const user = inject('$user')
 const router = useRouter()
 const readOnlyMode = window.read_only_mode
 const { $dialog } = getCurrentInstance().appContext.config.globalProperties
+
+const duplicating = ref(false)
+const duplicate = async () => {
+	duplicating.value = true
+	await duplicateQuiz(quizDetails.value.doc.name, router)
+	duplicating.value = false
+}
 
 const deleteQuiz = () => {
 	$dialog({

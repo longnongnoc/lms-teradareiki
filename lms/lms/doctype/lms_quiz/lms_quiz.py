@@ -190,6 +190,32 @@ class LMSQuiz(AuthoredDocument, Document):
 			return result[0]
 
 
+@frappe.whitelist()
+def duplicate_quiz(quiz: str) -> str:
+	"""Copy a quiz's settings and question rows into a new quiz, returning its name.
+
+	The rows point at the same LMS Question docs, as a question added from the bank
+	does. Submissions and practical scores link to the quiz and are not copied.
+	Write on the source, not read: a learner or a placing instructor can read a quiz,
+	and a copy they author would hand them its answer key.
+	"""
+	if not isinstance(quiz, str) or not frappe.db.exists("LMS Quiz", quiz):
+		frappe.throw(_("Invalid quiz."), frappe.ValidationError)
+
+	source = frappe.get_doc("LMS Quiz", quiz)
+	if not (frappe.has_permission("LMS Quiz", "create") and source.has_permission("write")):
+		frappe.throw(_("You are not allowed to duplicate this quiz."), frappe.PermissionError)
+
+	copy = frappe.copy_doc(source)
+	copy.title = _("{0} (Copy)").format(source.title)
+	# The copy is the duplicator's, and sits in no lesson until someone places it.
+	copy.set("authors", [])
+	copy.lesson = None
+	copy.course = None
+	copy.insert()
+	return copy.name
+
+
 def set_total_marks(questions: list) -> int:
 	marks = 0
 	for question in questions:

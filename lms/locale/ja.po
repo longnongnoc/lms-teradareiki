@@ -51978,3 +51978,15 @@ msgstr "{0}件のテストをインポートしました"
 #: frontend/src/components/Quiz/QuizImportDialog.vue
 msgid "Could not import the tests"
 msgstr "テストをインポートできませんでした"
+
+#: frontend/src/utils/quizDuplicate.ts
+msgid "Quiz duplicated"
+msgstr "クイズを複製しました"
+
+#: frontend/src/utils/quizDuplicate.ts
+msgid "Could not duplicate the quiz"
+msgstr "クイズを複製できませんでした"
+
+#: lms/lms/doctype/lms_quiz/lms_quiz.py
+msgid "You are not allowed to duplicate this quiz."
+msgstr "このクイズを複製する権限がありません。"
