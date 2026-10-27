@@ -26,13 +26,14 @@ import {
 	getCurrentInstance,
 	inject,
 	nextTick,
+	onBeforeUnmount,
 	onMounted,
 	provide,
 	reactive,
 	ref,
 	watch,
 } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import { getMetaInfo, updateMetaInfo } from '@/utils'
 import { validateCourse } from '@/utils/courseForm'
@@ -98,11 +99,11 @@ const courseResource = createDocumentResource({
 }) as Resource<LMSCourse | null>
 
 // Set while the form is being populated from a server fetch so the resulting
-// field updates don't arm autosave (mirrors the lesson editor's load guard).
+// field updates don't mark the course dirty (mirrors the lesson editor's load guard).
 let applyingServerData = false
 
-// Tracks the last validation error surfaced to the user so a repeated autosave
-// attempt with the same unmet requirement doesn't re-toast on every keystroke.
+// Tracks the last validation error surfaced to the user so a repeated attempt
+// with the same unmet requirement doesn't re-toast.
 let lastAutoSaveError: string | null = null
 
 const validateForm = (): string | null =>
@@ -111,11 +112,15 @@ const validateForm = (): string | null =>
 		instructors: instructors.value,
 	})
 
-// Debounced so a burst of edits collapses into a single save shortly after the
-// user pauses. When a mandatory field is empty or the price is invalid, the
-// autosave can't succeed. Surface the reason once and keep the "Not Saved"
-// badge (isDirty stays true) so the change isn't silently lost.
-const autoSave = useDebounceFn((): void => {
+// Edits only mark the course dirty; the header's Save button (or Ctrl+S) writes
+// them. There is no timed autosave: a browser page translation rewrites the
+// description in place, and the old 1 s autosave stored the translation. The one
+// write that is not a click is the flush below, when the Settings tab is left.
+//
+// When a mandatory field is empty or the price is invalid, a save can't
+// succeed. Surface the reason once and keep the "Not Saved" badge (isDirty
+// stays true) so the change isn't silently lost.
+const saveOnLeave = (): void => {
 	if (!isDirty.value) return
 	const error = validateForm()
 	if (error) {
@@ -127,13 +132,28 @@ const autoSave = useDebounceFn((): void => {
 	}
 	lastAutoSaveError = null
 	updateCourse({ silent: true })
-}, 1000)
+}
+
+// Counts edits, so a save can tell whether one landed while it was in flight.
+let edits = 0
 
 const markDirty = (): void => {
 	if (applyingServerData) return
+	edits += 1
 	isDirty.value = true
-	autoSave()
 }
+
+// Closing or reloading the tab runs no unmount flush, so ask first.
+useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
+	if (!isDirty.value) return
+	event.preventDefault()
+	event.returnValue = ''
+})
+
+// Switching to another tab unmounts this form; write pending edits first.
+onBeforeUnmount(() => {
+	saveOnLeave()
+})
 
 const courseFormContext: CourseFormContext = {
 	resource: courseResource,
@@ -210,7 +230,13 @@ const submitCourse = (): void => {
 	updateCourse()
 }
 
+// Numbers each write, so an older response landing after a newer one (two Save
+// clicks, or one and the leave flush) cannot mark the course saved.
+let saveSeq = 0
+
 const updateCourse = (opts: { silent?: boolean } = {}): void => {
+	const seq = ++saveSeq
+	const sentEdits = edits
 	// Drop `modified` from the payload: this form does an intentional whole-doc
 	// last-write-wins save, and sending a stale `modified` trips Frappe's
 	// timestamp guard when the course was touched elsewhere (publish toggle,
@@ -225,8 +251,12 @@ const updateCourse = (opts: { silent?: boolean } = {}): void => {
 		},
 		{
 			onSuccess() {
+				if (seq !== saveSeq) return
 				updateMetaInfo('courses', courseResource.doc?.name, meta)
 				if (!opts.silent) toast.success(__('Course updated successfully'))
+				// Edits typed while this was in flight are still unsaved, and the
+				// reload below would replace them with the server's copy.
+				if (edits !== sentEdits) return
 				isDirty.value = false
 				courseResource.reload()
 				// Refresh the shared course resource so sibling tabs (Overview,

@@ -150,7 +150,7 @@ import {
 	watch,
 } from 'vue'
 import { ChevronRight, NotebookPen } from 'lucide-vue-next'
-import { useDebounceFn, useEventListener } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 import { enablePlyr, sanitizeEditorJs } from '@/utils'
 import {
 	hasEditorContent,
@@ -217,7 +217,6 @@ function onTitleInput() {
 
 function onTitleBlur() {
 	titleKeyboardFocus.value = false
-	if (isDraft.value) createDraftLesson()
 }
 
 // EditorJS can't focus while the card is collapsed (display:none).
@@ -313,8 +312,8 @@ function markDeleted() {
 }
 
 // Edits only mark the lesson dirty; the header's Save button (or Ctrl+S) writes
-// them, and so does the 5-minute autosave below. The unmount flush still saves
-// when the author moves to another lesson.
+// them. There is no timed autosave. The unmount flush still saves when the
+// author moves to another lesson.
 function markDirty({ fromTitle = false } = {}) {
 	if (lessonDeleted) return
 	if (isDraft.value) return markDraftDirty(fromTitle)
@@ -389,34 +388,6 @@ const hasUnsavedWork = () =>
 	pendingChecks > 0 ||
 	(isDraft.value && lesson.title.trim() !== '')
 
-// While the lesson stays unsaved it also saves itself every 5 minutes, so a
-// forgotten Save loses at most that much. Not a debounce: steady typing would
-// keep pushing it back.
-const AUTOSAVE_INTERVAL = 5 * 60 * 1000
-let autosaveTimer = null
-
-function armAutosave() {
-	clearTimeout(autosaveTimer)
-	autosaveTimer = setTimeout(() => {
-		autosaveTimer = null
-		if (!isDirty.value || lessonDeleted || isUnmounting) return
-		// Without a title the save can only fail with "Title is required";
-		// leave that to the Save button rather than repeat it every round.
-		if (lesson.title.trim()) saveLesson()
-		// A failed save leaves the lesson dirty; try again next round.
-		armAutosave()
-	}, AUTOSAVE_INTERVAL)
-}
-
-watch(isDirty, (dirty) => {
-	if (dirty) {
-		if (!autosaveTimer) armAutosave()
-		return
-	}
-	clearTimeout(autosaveTimer)
-	autosaveTimer = null
-})
-
 // Closing or reloading the tab runs no unmount flush, so ask first.
 useEventListener(window, 'beforeunload', (event) => {
 	if (!hasUnsavedWork() || lessonDeleted) return
@@ -468,10 +439,10 @@ function openDraft() {
 	})
 }
 
-// Before the lesson exists, body edits are only captured; the title schedules
-// the create. The first save after the create writes the captured edits.
+// Before the lesson exists, body edits are only captured and a title only marks
+// the form unsaved. Nothing creates the lesson until Save (or Ctrl+S).
 function markDraftDirty(fromTitle) {
-	if (fromTitle) return createDraftAfterIdle()
+	if (fromTitle) return markFieldEdited()
 	if (!initialLoadComplete) return
 	checkEditors()
 }
@@ -481,20 +452,21 @@ const createLessonResource = createResource({
 	makeParams: (values) => values,
 })
 
-// Guards the one create: idle ticks, blur and Ctrl+S during the request must
-// not insert a second lesson. Cleared only when the request fails.
+// Guards the one create: a second Save or Ctrl+S during the request must not
+// insert a second lesson. Cleared only when the request fails.
 let creatingDraft = false
 let createdTitle = ''
+// A Save click creates the lesson and then writes the body captured meanwhile.
+let saveAfterCreate = false
 
-const createDraftAfterIdle = useDebounceFn(() => createDraftLesson(), 3000)
-
-function createDraftLesson({ flush = false } = {}) {
+function createDraftLesson({ flush = false, andSave = false } = {}) {
 	if (!isDraft.value || creatingDraft || lessonDeleted) return
 	if (isUnmounting && !flush) return
 	const title = lesson.title.trim()
 	if (!title) return
 	creatingDraft = true
 	createdTitle = title
+	saveAfterCreate = andSave
 	return submitResource(
 		createLessonResource,
 		{ chapter: draftChapter, title },
@@ -509,7 +481,7 @@ function createDraftLesson({ flush = false } = {}) {
 }
 
 // The form stays mounted, so the title keeps its focus and caret. From here on
-// it is an ordinary lesson, saved by the Save button or the 5-minute autosave.
+// it is an ordinary lesson, saved by the Save button.
 function promoteDraft(name) {
 	isDraft.value = false
 	lessonDetails.data = {
@@ -520,8 +492,20 @@ function promoteDraft(name) {
 	instructorUploadContext.docname = name
 	emit('created', { name, chapter: draftChapter })
 	// Typed while the create was in flight.
-	if (lesson.title.trim() !== createdTitle) markFieldEdited()
-	if (isDirty.value && isUnmounting) saveLesson({ flush: true })
+	const typedMeanwhile = lesson.title.trim() !== createdTitle
+	if (typedMeanwhile) markFieldEdited()
+	const writeBody = saveAfterCreate
+	saveAfterCreate = false
+	if (writeBody) {
+		// The create saved the title. The body goes in the same Save, but only
+		// when it has something in it.
+		if (!typedMeanwhile) isDirty.value = false
+		captureEditors().then((changed) => {
+			if (!changed) return
+			isDirty.value = true
+			saveLesson({ flush: isUnmounting })
+		})
+	} else if (isDirty.value && isUnmounting) saveLesson({ flush: true })
 }
 
 // ignoreTyping:false enables Ctrl+S in title; guard spares ProseMirror.
@@ -631,7 +615,6 @@ const addInstructorNotes = (data) => {
 
 onBeforeUnmount(() => {
 	isUnmounting = true
-	clearTimeout(autosaveTimer)
 	// Flush unsaved edits before teardown; skip if deleted.
 	if (lessonDeleted) return
 	if (isDraft.value) {
@@ -733,7 +716,7 @@ const captureEditors = async () => {
 }
 
 function saveLesson({ flush = false, onlyIfChanged = false } = {}) {
-	if (isDraft.value) return createDraftLesson({ flush })
+	if (isDraft.value) return createDraftLesson({ flush, andSave: true })
 	// foldEditorData skips unreadable fields, so `lesson` still holds their stored
 	// strings and the write puts them back unchanged rather than blanking them.
 	warnUnreadable()
@@ -835,11 +818,11 @@ const linkLesson = (lessonName) =>
 		}
 	)
 
-// Numbers each write, so an older response landing after a newer one (the
-// autosave and a Save click overlapping) cannot mark the lesson saved.
+// Numbers each write, so an older response landing after a newer one (two Save
+// clicks, or one and the leave flush) cannot mark the lesson saved.
 let saveSeq = 0
 
-// Edits can land while a write is in flight (the autosave fires mid-typing), so
+// Edits can land while a write is in flight (typing goes on during a save), so
 // a success clears the dirty flag only if nothing changed since it was sent.
 function settleAfterSave(seq, sentFieldEdits) {
 	if (fieldEdits !== sentFieldEdits) return
