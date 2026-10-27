@@ -40,9 +40,9 @@ from lms.lms.doctype.lms_question.lms_question import (
 )
 from lms.lms.fill_blank import apply_negative_marking, grade_fill_blank, parse_submitted_answer
 from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
+from lms.lms.quiz_results import _can_review, _is_staff
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
-	PRIVILEGED_ROLES,
 	generate_slug,
 	has_course_instructor_role,
 	has_moderator_role,
@@ -933,10 +933,11 @@ def get_fill_blanks(question: str) -> list[dict]:
 def get_fill_blank_review(submission: str):
 	"""Per-blank results of every Fill Blank answer in a submission, keyed by question name.
 
-	The accepted answers are only included for a viewer who may see the answer key: a
-	privileged role, or a quiz that reveals answers (show_answers). Anyone else gets each
-	blank's own answer, is_correct and marks. A learner gets nothing when the quiz has
-	Show Answer Review off; staff always get the review.
+	The accepted answers are only included for a viewer who may see the answer key: staff
+	who may review the member on the quiz, or anyone when the quiz reveals answers
+	(show_answers). Anyone else gets each blank's own answer, is_correct and marks. A
+	viewer who does not review the quiz gets nothing when it has Show Answer Review off,
+	as in lms.lms.quiz_results.get_submission_answers.
 	"""
 	if not isinstance(submission, str):
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
@@ -950,12 +951,11 @@ def get_fill_blank_review(submission: str):
 		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
 
 	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
-	privileged = bool(PRIVILEGED_ROLES & set(frappe.get_roles()))
-	# Anyone past the own-submission check who is not the member is reading it as staff.
-	is_staff = privileged or row.member != frappe.session.user
-	if not is_staff and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+	# Staff on their own submission of a quiz they do not review read it as a learner.
+	reviewer = _is_staff() and _can_review(row.quiz, row.member)
+	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
 		return {}
-	reveal = privileged or bool(quiz.show_answers)
+	reveal = reviewer or bool(cint(quiz.show_answers))
 
 	result_rows = frappe.get_all(
 		"LMS Quiz Result",
