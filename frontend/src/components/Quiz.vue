@@ -1887,6 +1887,8 @@ const submissionAnswers = createResource<SubmissionAnswers>({
 watch(
 	() => quizSubmission.data?.submission,
 	(submission) => {
+		// Never show the last attempt's answers while this one's are on the way.
+		submissionAnswers.reset()
 		if (submission && !props.preview) submissionAnswers.fetch()
 	}
 )
@@ -2266,6 +2268,7 @@ const resetQuiz = () => {
 	fillBlankGrade.value = null
 	emptyBlanksFlagged.value = false
 	fillBlankReview.reset()
+	submissionAnswers.reset()
 	attemptedQuestions.value = []
 	reviewQuestions.value = []
 	quizSubmission.reset()

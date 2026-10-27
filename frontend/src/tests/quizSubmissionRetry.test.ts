@@ -611,6 +611,34 @@ describe('Quiz.vue result', () => {
 		wrapper.unmount()
 	})
 
+	// Guards Try again leaving the last attempt's answers in place, to show
+	// again if the next attempt's answers fail to load.
+	it('drops the previous answers on Try again', async () => {
+		const wrapper = await finish({ enable_proctoring: 0, max_attempts: 3 })
+		const vm = wrapper.vm as any
+		vm.submitQuiz()
+		await runDeferredSubmit()
+		vm.submissionAnswers.data = {
+			questions: [
+				{
+					name: 'row-1',
+					question_name: 'quiz-a-q1',
+					question: 'What is quiz-a-q1?',
+					question_type: 'Choices',
+					answer: 'b',
+					marks: 0,
+					marks_out_of: 1,
+				},
+			],
+		}
+		await flushPromises()
+		expect(wrapper.find('[data-testid="answer-review"]').exists()).toBe(true)
+
+		vm.resetQuiz()
+		expect(vm.submissionAnswers.data).toBeNull()
+		wrapper.unmount()
+	})
+
 	it('sends a learner who hit the violation cap to the instructor, not a retry', async () => {
 		const wrapper = await finish()
 		const vm = wrapper.vm as any
