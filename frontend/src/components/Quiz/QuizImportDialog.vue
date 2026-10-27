@@ -56,7 +56,7 @@
 						<ul class="space-y-0.5 text-ink-gray-7">
 							<li v-for="row in group.rows" :key="row.title">
 								{{ row.title }}
-								<span class="text-ink-gray-5">
+								<span class="text-ink-gray-6">
 									{{
 										row.reason
 											? `(${row.reason})`

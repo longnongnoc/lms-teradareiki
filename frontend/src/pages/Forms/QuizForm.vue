@@ -282,7 +282,7 @@
 					<div v-if="!isNew" class="space-y-1.5">
 						<div
 							id="quiz-instructions-label"
-							class="text-xs text-ink-gray-5"
+							class="text-xs text-ink-gray-6"
 						>
 							{{ __('Instructions') }}
 						</div>
