@@ -31,9 +31,6 @@
 					/>
 					<FormControl v-model="profile.last_name" :label="__('Last Name')" />
 					<FormControl v-model="profile.headline" :label="__('Headline')" />
-					<FormControl v-model="profile.linkedin" :label="__('LinkedIn ID')" />
-					<FormControl v-model="profile.github" :label="__('GitHub ID')" />
-					<FormControl v-model="profile.twitter" :label="__('Twitter ID')" />
 				</div>
 				<div class="space-y-4">
 					<FormControl
@@ -137,9 +134,6 @@ const profile = reactive({
 	bio: '',
 	image: '',
 	open_to: '',
-	linkedin: '',
-	github: '',
-	twitter: '',
 })
 
 // Every key above is a User fieldname except `image`, which edits `user_image`.
@@ -195,6 +189,9 @@ const saveProfile = () => {
 				// payload, and the page behind this one is now visible, so it would
 				// render a half-shaped profile for the tick before the reload lands.
 				props.profile?.reload()
+				// The sidebar and header read name and avatar off the session
+				// user, not the profile, so they stayed stale until F5.
+				user.reload?.()
 				toast.success(__('Profile updated successfully'))
 				if (languageChanged) {
 					// A language change only takes effect after the whole SPA reloads,

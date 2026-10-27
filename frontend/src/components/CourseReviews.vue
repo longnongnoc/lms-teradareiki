@@ -4,7 +4,7 @@
 			<div class="flex items-center gap-2">
 				<LucideStar class="size-5 text-transparent fill-ink-amber-7" />
 				<span class="text-3xl-semibold text-ink-gray-9">
-					{{ avg_rating ? formatRating(avg_rating) : '0' }}
+					{{ averageRating ? formatRating(averageRating) : '0' }}
 				</span>
 				<span class="text-lg text-ink-gray-7">
 					{{ __('course rating') }} &amp;
@@ -160,6 +160,14 @@ watch(
 		if (props.courseName) reviews.reload()
 	}
 )
+
+// Averaged from the loaded reviews, not the course's stored `rating`, so a
+// review the learner just wrote counts before the course is fetched again.
+const averageRating = computed(() => {
+	const ratings = (reviews.data || []).map((r) => r.rating)
+	if (!ratings.length) return props.avg_rating
+	return ratings.reduce((sum, r) => sum + r, 0) / ratings.length
+})
 
 const showReviewModal = ref(false)
 const showAll = ref(false)

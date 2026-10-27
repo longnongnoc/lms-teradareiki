@@ -169,7 +169,11 @@ describe('notifications', () => {
 		const groups = build({
 			otherLinks: OTHER.filter((l) => l.to !== 'Notifications'),
 		})
-		expect(labelsIn(groups, 'Settings')).toEqual(['Colour mode', 'Log out'])
+		expect(labelsIn(groups, 'Settings')).toEqual([
+			'Colour mode',
+			'Change Password',
+			'Log out',
+		])
 	})
 })
 
@@ -180,6 +184,7 @@ describe('the last group', () => {
 		expect(labelsIn(build(), 'Settings')).toEqual([
 			'Notifications',
 			'Colour mode',
+			'Change Password',
 			'Log out',
 		])
 		expect(allRows(build()).map((row) => row.label)).not.toContain('Settings')
@@ -271,6 +276,7 @@ describe('every icon the page can draw', () => {
 			'lucide-mail',
 			'lucide-bell',
 			'lucide-sun-moon',
+			'lucide-key-round',
 			'lucide-log-out',
 		])
 	})
