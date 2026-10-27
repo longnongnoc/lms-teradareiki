@@ -306,7 +306,7 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		expect(setValue().submit).not.toHaveBeenCalled()
 	})
 
-	it('saves body edits made during the draft right after the create', async () => {
+	it('keeps body edits made during the draft dirty until Save', async () => {
 		wrapper = await mountDraft()
 		editorState.saveData.content = paragraph('Body before the title')
 		await editBody(wrapper)
@@ -317,6 +317,11 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		await idle(3000)
 		await settleCreate()
 		await idle(800)
+		expect(setValue().submit).not.toHaveBeenCalled()
+		expect((wrapper.vm as any).isDirty).toBe(true)
+
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
 
 		expect(setValue().submit).toHaveBeenCalledTimes(1)
 		expect(setValue().lastParams.name).toBe(NEW_LESSON)
@@ -331,20 +336,26 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		await idle(3000)
 		await typeTitle(wrapper, 'Intro to sets')
 		await settleCreate()
-		await idle(800)
+		expect((wrapper.vm as any).isDirty).toBe(true)
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
 
 		expect(setValue().submit).toHaveBeenCalledTimes(1)
 		expect(setValue().lastParams.fieldname.title).toBe('Intro to sets')
 	})
 
-	it('autosaves later title edits after 800 ms, not 3 s', async () => {
+	it('saves later title edits only on Save, never on idle', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
 		await idle(3000)
 		await settleCreate()
 
 		await typeTitle(wrapper, 'Introduction')
-		await idle(800)
+		await idle(5000)
+		expect(setValue().submit).not.toHaveBeenCalled()
+
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
 
 		expect(createLesson().submit).toHaveBeenCalledTimes(1)
 		expect(setValue().submit).toHaveBeenCalledTimes(1)
