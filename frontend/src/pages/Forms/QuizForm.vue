@@ -287,7 +287,7 @@
 							data-testid="quiz-instructions-editor"
 							ariaLabelledby="quiz-instructions-label"
 							:content="doc.instructions"
-							@change="(val) => (doc.instructions = val)"
+							@change="setInstructions"
 							:editable="!locked"
 							:fixedMenu="true"
 							:uploadArgs="{ private: false }"
@@ -527,6 +527,7 @@ import { getLmsRoute } from '@/utils/basePath'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import { useCanWrite } from '@/composables/useCanWrite'
 import { duplicateQuiz } from '@/utils/quizDuplicate'
+import { htmlToText } from '@/utils/inertHtml'
 
 const { brand } = sessionStore()
 const rightPanel = ref('settings') // 'settings' | 'bank'
@@ -582,6 +583,15 @@ const duplicate = async () => {
 	duplicating.value = true
 	await duplicateQuiz(quizDetails.value.doc.name, router)
 	duplicating.value = false
+}
+
+// An empty editor still writes "<p></p>". Kept out of the doc, it neither marks
+// a pristine quiz unsaved nor saves an empty box for learners.
+const isBlankHtml = (html) =>
+	!htmlToText(html) && !/<(img|iframe|video)\b/i.test(html || '')
+const setInstructions = (val) => {
+	if (!isBlankHtml(val)) doc.value.instructions = val
+	else if (!isBlankHtml(doc.value.instructions)) doc.value.instructions = null
 }
 
 const deleteQuiz = () => {

@@ -1082,6 +1082,25 @@ describe('QuizForm: instructions', () => {
 			'<p>Read each question twice.</p>'
 		)
 	})
+
+	// tiptap writes "<p></p>" for an empty document.
+	it('leaves a quiz without instructions saved when the editor writes empty markup', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await editor(wrapper).setValue('<p></p>')
+
+		expect(wrapper.vm.quizDetails.isDirty).toBe(false)
+		expect(badge(wrapper).text()).toBe('Saved')
+	})
+
+	it('saves cleared instructions as empty, not as an empty paragraph', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW], {
+			instructions: '<p>Old</p>',
+		})
+		await editor(wrapper).setValue('<p></p>')
+		await pressSave()
+
+		expect(setValueSubmit.mock.calls.at(-1)![0].instructions).toBeNull()
+	})
 })
 
 describe('QuizForm: duplicate', () => {
