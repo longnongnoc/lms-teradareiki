@@ -207,13 +207,29 @@ def duplicate_quiz(quiz: str) -> str:
 		frappe.throw(_("You are not allowed to duplicate this quiz."), frappe.PermissionError)
 
 	copy = frappe.copy_doc(source)
-	copy.title = _("{0} (Copy)").format(source.title)
+	copy.title = copy_title(source.title)
 	# The copy is the duplicator's, and sits in no lesson until someone places it.
 	copy.set("authors", [])
 	copy.lesson = None
 	copy.course = None
 	copy.insert()
 	return copy.name
+
+
+def copy_title(title: str) -> str:
+	"""The first of "X (Copy)", "X (Copy 2)", ... that no quiz has, cut to fit the title field.
+
+	The base is shortened, not the suffix, so a long title still reads as a copy.
+	"""
+	limit = frappe.get_meta("LMS Quiz").get_field("title").length or 140
+	count = 1
+	while True:
+		pattern = _("{0} (Copy)") if count == 1 else _("{0} (Copy {1})")
+		room = limit - len(pattern.format("", count))
+		candidate = pattern.format(title[:room].rstrip(), count)
+		if not frappe.db.exists("LMS Quiz", {"title": candidate}):
+			return candidate
+		count += 1
 
 
 def set_total_marks(questions: list) -> int:

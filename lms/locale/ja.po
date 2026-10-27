@@ -51994,3 +51994,7 @@ msgstr "このクイズを複製する権限がありません。"
 #: frontend/src/components/Assessment/QuizStats.vue
 msgid "Total marks"
 msgstr "満点"
+
+#: lms/lms/doctype/lms_quiz/lms_quiz.py
+msgid "{0} (Copy {1})"
+msgstr "{0} (コピー {1})"

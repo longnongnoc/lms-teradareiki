@@ -78,3 +78,23 @@ class TestDuplicateQuiz(BaseTestUtils):
 		frappe.set_user(self.student.name)
 		with self.assertRaises(frappe.PermissionError):
 			duplicate_quiz(self.quiz.name)
+
+	def test_each_copy_gets_its_own_title(self):
+		# A source of its own, as the other tests leave copies of self.quiz behind.
+		source = self._create_quiz(self.questions, title=f"Twice Copied {frappe.generate_hash(length=6)}")
+		first = frappe.db.get_value("LMS Quiz", duplicate_quiz(source.name), "title")
+		second = frappe.db.get_value("LMS Quiz", duplicate_quiz(source.name), "title")
+
+		self.assertEqual(first, f"{source.title} (Copy)")
+		self.assertEqual(second, f"{source.title} (Copy 2)")
+
+	def test_a_title_at_the_length_limit_still_copies(self):
+		limit = frappe.get_meta("LMS Quiz").get_field("title").length or 140
+		title = (f"Long Source {frappe.generate_hash(length=6)} " + "x" * limit)[:limit]
+		source = self._create_quiz(self.questions, title=title)
+
+		copy = frappe.db.get_value("LMS Quiz", duplicate_quiz(source.name), "title")
+
+		self.assertLessEqual(len(copy), limit)
+		self.assertTrue(copy.endswith(" (Copy)"))
+		self.assertTrue(title.startswith(copy.removesuffix(" (Copy)")))
