@@ -39,7 +39,7 @@
 					{{ ownSubmissionNotice }}
 				</span>
 			</template>
-			<template v-else>
+			<template v-else-if="isStaff">
 				<Badge
 					v-if="submissionDetails.isDirty"
 					:label="__('Not Saved')"
@@ -184,6 +184,21 @@
 								</span>
 								<span v-safe-html:rich="answerText(row)" />
 							</div>
+							<!-- Sent by the server only to staff, or to the learner when the
+							     quiz shows answers. A Fill Blank row carries its accepted
+							     answers in the marked blanks above instead. -->
+							<div
+								v-if="!isFillBlankRow(row) && correctAnswer(row)"
+								data-testid="correct-answer"
+								class="text-base leading-6 text-ink-gray-6"
+							>
+								<span
+									class="me-2 text-xs font-medium uppercase tracking-wide text-ink-gray-6"
+								>
+									{{ __('Correct answer:') }}
+								</span>
+								<span>{{ correctAnswer(row) }}</span>
+							</div>
 						</div>
 						<!-- Only an open-ended answer is a judgement call; a choice was
 						     already marked when it was submitted. -->
@@ -196,7 +211,7 @@
 								{{ __('Marks:') }}
 							</span>
 							<FormControl
-								v-if="isOpenEnded"
+								v-if="isOpenEnded && isStaff"
 								v-model="row.marks"
 								type="number"
 								:aria-label="__('Marks for question {0}').format(index + 1)"
@@ -295,6 +310,7 @@
 						</span>
 					</div>
 					<router-link
+						v-if="isStaff"
 						:to="{ name: 'QuizResults' }"
 						class="mt-2 inline-block text-xs text-ink-gray-6 underline underline-offset-2 hover:text-ink-gray-8"
 					>
@@ -440,7 +456,7 @@ import {
 	toast,
 	LoadingIndicator,
 } from 'frappe-ui'
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import { useDebounceFn, useMediaQuery } from '@vueuse/core'
 import { safeUrl } from '@/utils/safeUrl'
 import PageHeader from '@/components/Layouts/pages/PageHeader.vue'
@@ -449,6 +465,10 @@ import HeaderButton from '@/components/HeaderButton.vue'
 import QuizQuestionBody from '@/components/Quiz/QuizQuestionBody.vue'
 import { indexBlankResults, parseFillBlankAnswer } from '@/utils/fillBlank'
 import { describeChoiceAnswer } from '@/utils/optionKey'
+import {
+	SUBMISSION_ANSWERS_METHOD,
+	correctAnswerText,
+} from '@/utils/submissionAnswers'
 import {
 	SUMMARY_METHOD,
 	formatTotal,
@@ -468,10 +488,12 @@ const { brand } = sessionStore()
 const router = useRouter()
 const user = inject('$user')
 
-onMounted(() => {
-	if (!user.data?.is_instructor && !user.data?.is_moderator)
-		router.push({ name: 'Courses' })
-})
+// A learner is sent the link to their own submission, so the page opens for
+// them read-only. Whose submission may be read is the server's call: a
+// learner asking for anyone else's gets an error and is sent away.
+const isStaff = computed(
+	() => !!(user.data?.is_instructor || user.data?.is_moderator)
+)
 
 useKeyboardShortcuts({
 	ignoreTyping: false,
@@ -494,7 +516,29 @@ const submissionDetails = createDocumentResource({
 	doctype: 'LMS Quiz Submission',
 	name: props.submission,
 	auto: true,
+	onError() {
+		if (!isStaff.value) router.push({ name: 'Courses' })
+	},
 })
+
+const submissionAnswers = createResource({
+	url: SUBMISSION_ANSWERS_METHOD,
+	makeParams() {
+		return { submission: props.submission }
+	},
+	auto: true,
+})
+
+const correctAnswers = computed(() =>
+	Object.fromEntries(
+		(submissionAnswers.data?.questions || []).map((row) => [row.name, row])
+	)
+)
+
+const correctAnswer = (row) => {
+	const answers = correctAnswers.value[row.name]
+	return answers ? correctAnswerText(answers) : ''
+}
 
 const violationLog = createResource({
 	url: 'lms.lms.doctype.lms_quiz.lms_quiz.get_quiz_violation_logs',
@@ -665,11 +709,13 @@ const markStatusClass = (row) => {
 // undefined doc. Matches the list page: no quiz crumb, and no `?quiz=` back,
 // which used to relocate the list.
 const breadcrumbs = computed(() => {
+	const doc = submissionDetails.doc
+	// The quiz lists are staff pages, so a learner gets no trail back to them.
+	if (!isStaff.value) return doc ? [{ label: doc.quiz_title }] : []
 	const crumbs = [
 		{ label: __('Quizzes'), route: { name: 'Quizzes' } },
 		{ label: __('Submissions'), route: { name: 'QuizSubmissions' } },
 	]
-	const doc = submissionDetails.doc
 	if (doc) crumbs.push({ label: doc.member_name || doc.name })
 	return crumbs
 })
@@ -681,7 +727,7 @@ const isOwnSubmission = computed(
 )
 
 const saveSubmission = (opts = {}) => {
-	if (isOwnSubmission.value) return
+	if (isOwnSubmission.value || !isStaff.value) return
 	submissionDetails.save.submit(
 		{},
 		{

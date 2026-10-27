@@ -701,6 +701,48 @@
 					</div>
 				</div>
 				<div
+					v-if="answerReviewItems.length"
+					data-testid="answer-review"
+					class="space-y-4 border-t border-outline-gray-1 p-3.5"
+				>
+					<h3 class="text-sm-semibold text-ink-gray-9">
+						{{ __('Your answers') }}
+					</h3>
+					<div
+						v-for="item in answerReviewItems"
+						:key="item.name"
+						data-testid="answer-review-item"
+						class="space-y-1.5"
+					>
+						<div
+							class="flex items-center justify-between gap-3 text-sm text-ink-gray-6"
+						>
+							<span>{{ __('Question {0}').format(item.number) }}</span>
+							<span class="tabular-nums">
+								{{ __('{0} of {1} marks').format(item.marks, item.marksOutOf) }}
+							</span>
+						</div>
+						<div
+							v-safe-html:rich="item.question"
+							class="text-p-base text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+						/>
+						<p class="text-sm text-ink-gray-7">
+							<span class="me-1.5 text-ink-gray-6">{{ __('Your answer:') }}</span>
+							{{ item.answer || '-' }}
+						</p>
+						<p
+							v-if="item.correctAnswer"
+							data-testid="answer-review-correct"
+							class="text-sm text-ink-gray-7"
+						>
+							<span class="me-1.5 text-ink-gray-6">
+								{{ __('Correct answer:') }}
+							</span>
+							{{ item.correctAnswer }}
+						</p>
+					</div>
+				</div>
+				<div
 					v-if="quiz.data.enable_proctoring && summaryLog.length"
 					class="border-t border-outline-gray-1 p-3.5"
 				>
@@ -976,6 +1018,12 @@ import {
 	joinSentences,
 } from '@/utils/quizSummary'
 import { orderQuizQuestions } from '@/utils/quizSections'
+import {
+	SUBMISSION_ANSWERS_METHOD,
+	answerText,
+	correctAnswerText,
+} from '@/utils/submissionAnswers'
+import type { SubmissionAnswers } from '@/utils/submissionAnswers'
 import { safeUrl } from '@/utils/safeUrl'
 import {
 	isOptionPresent,
@@ -1813,6 +1861,51 @@ const passed = computed(() => {
 	if (!result) return false
 	if (typeof result.pass === 'boolean') return result.pass
 	return result.percentage >= (quiz.data?.passing_percentage ?? 0)
+})
+
+// Every question of the submission just made, with the learner's answer and
+// marks. The server adds the correct answer only when the quiz shows answers.
+const submissionAnswers = createResource<SubmissionAnswers>({
+	url: SUBMISSION_ANSWERS_METHOD,
+	makeParams() {
+		return { submission: quizSubmission.data?.submission }
+	},
+})
+
+watch(
+	() => quizSubmission.data?.submission,
+	(submission) => {
+		if (submission && !props.preview) submissionAnswers.fetch()
+	}
+)
+
+// A Fill Blank question shown blank by blank in the review above is left out.
+const answerReviewItems = computed(() => {
+	const rows = submissionAnswers.data?.questions
+	if (!rows || !quizSubmission.data || quizSubmission.data.is_open_ended)
+		return []
+	return rows
+		.filter(
+			(row) =>
+				!(
+					row.question_type === 'Fill Blank' &&
+					fillBlankReview.data?.[row.question_name]
+				)
+		)
+		.map((row) => {
+			const position = questions.value.findIndex(
+				(question) => question.question === row.question_name
+			)
+			return {
+				name: row.name,
+				number: position + 1 || rows.indexOf(row) + 1,
+				question: row.question,
+				marks: row.marks,
+				marksOutOf: row.marks_out_of,
+				answer: answerText(row),
+				correctAnswer: correctAnswerText(row),
+			}
+		})
 })
 
 const answerCounts = computed(() => {
