@@ -31,6 +31,8 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		cls.learner = _make_user(f"answers-learner-{hash_}@test.com", "LMS Student")
 		cls.outsider = _make_user(f"answers-outsider-{hash_}@test.com", "LMS Student")
 		cls.instructor = _make_user(f"answers-instructor-{hash_}@test.com", "Course Creator")
+		# Staff role, but neither an author of the quiz nor teaching the learner.
+		cls.other_instructor = _make_user(f"answers-other-instructor-{hash_}@test.com", "Course Creator")
 
 		question = frappe.new_doc("LMS Question")
 		question.update(
@@ -55,19 +57,24 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		quiz.save(ignore_permissions=True)
 		cls.quiz = quiz
 
+		cls.submission = cls._make_submission(cls.learner.name)
+		cls.staff_submission = cls._make_submission(cls.other_instructor.name)
+
+	@classmethod
+	def _make_submission(cls, member):
 		submission = frappe.new_doc("LMS Quiz Submission")
 		submission.update(
 			{
-				"quiz": quiz.name,
-				"member": cls.learner.name,
+				"quiz": cls.quiz.name,
+				"member": member,
 				"score": 0,
 				"score_out_of": 2,
 				"percentage": 0,
 				"passing_percentage": 50,
 				"result": [
 					{
-						"question_name": question.name,
-						"question": question.question,
+						"question_name": cls.question.name,
+						"question": cls.question.question,
 						"question_type": "Choices",
 						"answer": "Wrong",
 						"marks": 0,
@@ -79,9 +86,9 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		)
 		# nosemgrep: lms-unjustified-ignore-permissions - fixture seeding, not the permission under test
 		submission.save(ignore_permissions=True)
-		cls.submission = submission
+		return submission
 
-	def _call(self, user, show_answers=0, show_answer_review=1):
+	def _call(self, user, show_answers=0, show_answer_review=1, submission=None):
 		frappe.db.set_value(
 			"LMS Quiz",
 			self.quiz.name,
@@ -90,7 +97,7 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		original = frappe.session.user
 		frappe.session.user = user
 		try:
-			return get_submission_answers(self.submission.name)
+			return get_submission_answers((submission or self.submission).name)
 		finally:
 			frappe.session.user = original
 
@@ -137,6 +144,15 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		data = self._call(self.instructor.name, show_answer_review=0)
 		self.assertEqual(len(data["questions"]), 1)
 		self.assertEqual(data["questions"][0]["correct_answer"], "Right")
+
+	def test_instructor_who_cannot_review_the_member_is_refused(self):
+		with self.assertRaises(frappe.PermissionError):
+			self._call(self.other_instructor.name)
+
+	def test_staff_on_their_own_submission_of_a_quiz_they_do_not_review_get_no_key(self):
+		data = self._call(self.other_instructor.name, show_answers=0, submission=self.staff_submission)
+		self.assertFalse(data["show_correct_answers"])
+		self.assertNotIn("correct_answer", data["questions"][0])
 
 	def test_unknown_submission_is_a_validation_error(self):
 		original = frappe.session.user

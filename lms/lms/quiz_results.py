@@ -246,9 +246,9 @@ def get_submission_answers(submission: str):
 	and, when the caller may see it, the correct answer.
 
 	The member reads their own submission; staff who may review the member on the quiz read
-	anyone's. The correct answer (`correct_answer` on each row) is only sent to staff, or to
-	the member when the quiz has Show Answers on. A member who does not review the quiz gets
-	no questions when it has Show Answer Review off."""
+	anyone's. The correct answer (`correct_answer` on each row) is only sent to staff who
+	may review the member, or to the member when the quiz has Show Answers on. A member who
+	does not review the quiz gets no questions when it has Show Answer Review off."""
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Please log in."), frappe.PermissionError)
@@ -257,12 +257,12 @@ def get_submission_answers(submission: str):
 	if not row:
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
 
-	staff = _is_staff()
-	reviewer = staff and _can_review(row.quiz, row.member)
+	# Staff on their own submission of a quiz they do not review read it as a learner.
+	reviewer = _is_staff() and _can_review(row.quiz, row.member)
 	if row.member != user and not reviewer:
 		frappe.throw(_("You are not permitted to view this submission."), frappe.PermissionError)
 	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
-	reveal = staff or bool(cint(quiz.show_answers))
+	reveal = reviewer or bool(cint(quiz.show_answers))
 	result = {"submission": submission, "quiz": row.quiz, "member": row.member}
 	# As in get_fill_blank_review: with Show Answer Review off the member gets no review.
 	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
