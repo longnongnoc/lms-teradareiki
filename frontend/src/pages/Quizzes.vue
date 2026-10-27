@@ -28,6 +28,14 @@
 				:label="__('Questions')"
 				icon="lucide-circle-help"
 			/>
+			<HeaderButton
+				v-if="!readOnlyMode && user.data?.is_moderator"
+				:label="__('Import')"
+				icon="lucide-upload"
+				@click="showImport = true"
+			/>
+			<!-- Teleported by Dialog, so it can sit in the slot. -->
+			<QuizImportDialog v-model="showImport" @imported="quizzes.reload()" />
 			<Button v-if="!readOnlyMode" variant="solid" @click="createQuiz">
 				<template #prefix>
 					<span class="lucide-plus size-4" />
@@ -78,6 +86,7 @@
 import { Button, Checkbox, createListResource, usePageMeta } from 'frappe-ui'
 import ListPage from '@/components/Layouts/pages/ListPage.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
+import QuizImportDialog from '@/components/Quiz/QuizImportDialog.vue'
 import { useRouter } from 'vue-router'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 
@@ -91,6 +100,8 @@ const router = useRouter()
 const search = ref('')
 const readOnlyMode = window.read_only_mode
 const quizFilters = ref({})
+// import_tests is gated to System Manager and Moderator on the server.
+const showImport = ref(false)
 
 onMounted(() => {
 	if (

@@ -51922,3 +51922,59 @@ msgstr "このクイズには提出物または実技点がすでにあるため
 #: frontend/src/pages/Forms/QuizForm.vue
 msgid "Shown to learners before they start the quiz"
 msgstr "受講者がクイズを開始する前に表示されます"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Import tests from JSON"
+msgstr "JSONからテストをインポート"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Choose a .json file. It is checked first, and nothing is written until you confirm."
+msgstr ".jsonファイルを選択してください。まず内容を確認し、確定するまで何も書き込まれません。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "JSON file"
+msgstr "JSONファイル"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Checking file…"
+msgstr "ファイルを確認しています…"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Some tests could not be imported."
+msgstr "一部のテストをインポートできませんでした。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "The file has errors. Nothing was imported."
+msgstr "ファイルにエラーがあります。何もインポートされていません。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "{0} questions"
+msgstr "{0}問"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Warnings"
+msgstr "警告"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Confirm import"
+msgstr "インポートを確定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Will be created"
+msgstr "作成予定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Will be updated"
+msgstr "更新予定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Could not check the file"
+msgstr "ファイルを確認できませんでした"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "{0} tests imported"
+msgstr "{0}件のテストをインポートしました"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Could not import the tests"
+msgstr "テストをインポートできませんでした"
