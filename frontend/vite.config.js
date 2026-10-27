@@ -47,8 +47,13 @@ function tableSizePicker10x10() {
 			const out = code
 				.replace('const MAX_COLS = 8', 'const MAX_COLS = 10')
 				.replace('const MAX_ROWS = 6', 'const MAX_ROWS = 10')
-			if (!out.includes('MAX_COLS = 10') || !out.includes('MAX_ROWS = 10'))
-				throw new Error('TableSizePicker.vue changed upstream: update tableSizePicker10x10')
+			if (
+				!out.includes('MAX_COLS = 10') ||
+				!out.includes('MAX_ROWS = 10')
+			)
+				throw new Error(
+					'TableSizePicker.vue changed upstream: update tableSizePicker10x10'
+				)
 			return out
 		},
 	}
