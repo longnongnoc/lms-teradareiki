@@ -60,7 +60,7 @@
 		<div v-if="attempts.length" class="overflow-x-auto">
 			<table
 				data-testid="summary-attempts"
-				class="w-full whitespace-nowrap text-start text-sm"
+				class="!w-max min-w-full !table-auto whitespace-nowrap text-start text-sm"
 			>
 				<caption class="sr-only">
 					{{
