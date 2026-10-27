@@ -953,8 +953,10 @@ def get_fill_blank_review(submission: str):
 	from lms.lms.quiz_results import _can_review, _is_staff
 
 	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
-	# Staff on their own submission of a quiz they do not review read it as a learner.
-	reviewer = _is_staff() and _can_review(row.quiz, row.member)
+	# Someone else's submission is only reachable with read permission (checked above), so its
+	# reader reviews it. Staff on their own submission of a quiz they do not review read it
+	# as a learner.
+	reviewer = row.member != frappe.session.user or (_is_staff() and _can_review(row.quiz, row.member))
 	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
 		return {}
 	reveal = reviewer or bool(cint(quiz.show_answers))
