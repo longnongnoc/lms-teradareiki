@@ -110,8 +110,28 @@ describe('QuizImportDialog', () => {
 			data: '{"tests": []}',
 			dry_run: 0,
 		})
-		expect(toast.success).toHaveBeenCalledWith('1 tests imported')
+		expect(toast.success).toHaveBeenCalledWith('1 test imported')
 		expect(wrapper.emitted('imported')).toHaveLength(1)
 		expect(confirm(wrapper).exists()).toBe(false)
+	})
+
+	it('lists every row of a file that repeats a title', async () => {
+		call.mockResolvedValueOnce({
+			...RESULT,
+			created: [
+				{ title: 'Same', quiz: null, questions: 1 },
+				{ title: 'Same', quiz: null, questions: 2 },
+			],
+		})
+		// Vue renders duplicate keys anyway and only warns, so the warning is the check.
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+		const wrapper = mountDialog()
+		await pick(wrapper, '{"tests": []}')
+
+		expect(
+			wrapper.find('[data-testid="quiz-import-created"]').findAll('li')
+		).toHaveLength(2)
+		expect(String(warn.mock.calls)).not.toContain('Duplicate keys')
+		warn.mockRestore()
 	})
 })

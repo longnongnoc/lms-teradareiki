@@ -51998,3 +51998,7 @@ msgstr "満点"
 #: lms/lms/doctype/lms_quiz/lms_quiz.py
 msgid "{0} (Copy {1})"
 msgstr "{0} (コピー {1})"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "1 test imported"
+msgstr "1件のテストをインポートしました"

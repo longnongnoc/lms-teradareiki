@@ -54,7 +54,8 @@
 							{{ group.label }}
 						</div>
 						<ul class="space-y-0.5 text-ink-gray-7">
-							<li v-for="row in group.rows" :key="row.title">
+							<!-- A file may repeat a title, so the position is the key. -->
+							<li v-for="(row, index) in group.rows" :key="index">
 								{{ row.title }}
 								<span class="text-ink-gray-6">
 									{{
@@ -185,7 +186,11 @@ const runImport = async () => {
 		imported.value = true
 		const count = result.value.created.length + result.value.updated.length
 		if (count) {
-			toast.success(__('{0} tests imported').format(count))
+			toast.success(
+				count === 1
+					? __('1 test imported')
+					: __('{0} tests imported').format(count)
+			)
 			emit('imported')
 		}
 	} catch (error) {
