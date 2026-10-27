@@ -57,53 +57,56 @@
 			</div>
 		</dl>
 
-		<table
-			v-if="attempts.length"
-			data-testid="summary-attempts"
-			class="w-full text-start text-sm"
-		>
-			<caption class="sr-only">
-				{{
-					__('Your attempts')
-				}}
-			</caption>
-			<thead class="text-ink-gray-6">
-				<tr>
-					<th scope="col" class="py-1 pe-2 text-start font-normal">
-						{{ __('Attempt') }}
-					</th>
-					<th scope="col" class="py-1 pe-2 text-start font-normal">
-						{{ __('Date') }}
-					</th>
-					<th scope="col" class="py-1 pe-2 text-start font-normal">
-						{{ __('Score') }}
-					</th>
-					<th scope="col" class="py-1 pe-2 text-start font-normal">
-						{{ __('Percentage') }}
-					</th>
-					<th scope="col" class="py-1 text-start font-normal">
-						<span class="sr-only">{{ __('Counting') }}</span>
-					</th>
-				</tr>
-			</thead>
-			<tbody class="divide-y divide-outline-gray-1 text-ink-gray-8">
-				<tr v-for="attempt in attempts" :key="attempt.name">
-					<td class="py-1.5 pe-2 tabular-nums">{{ attempt.attempt_no }}</td>
-					<td class="py-1.5 pe-2">{{ formatResultDate(attempt.creation) }}</td>
-					<td class="py-1.5 pe-2 tabular-nums">
-						{{ formatOutOf(attempt.score, attempt.score_out_of) }}
-					</td>
-					<td class="py-1.5 pe-2 tabular-nums">
-						{{ formatPercentage(attempt.percentage) }}
-					</td>
-					<td class="py-1.5">
-						<Badge v-if="isCountingAttempt(attempt)" size="sm" theme="blue">
-							{{ __('Counting') }}
-						</Badge>
-					</td>
-				</tr>
-			</tbody>
-		</table>
+		<div v-if="attempts.length" class="overflow-x-auto">
+			<table
+				data-testid="summary-attempts"
+				class="w-full whitespace-nowrap text-start text-sm"
+			>
+				<caption class="sr-only">
+					{{
+						__('Your attempts')
+					}}
+				</caption>
+				<thead class="text-ink-gray-6">
+					<tr>
+						<th scope="col" class="py-1 pe-2 text-start font-normal">
+							{{ __('Attempt') }}
+						</th>
+						<th scope="col" class="py-1 pe-2 text-start font-normal">
+							{{ __('Date') }}
+						</th>
+						<th scope="col" class="py-1 pe-2 text-start font-normal">
+							{{ __('Score') }}
+						</th>
+						<th scope="col" class="py-1 pe-2 text-start font-normal">
+							{{ __('Percentage') }}
+						</th>
+						<th scope="col" class="py-1 text-start font-normal">
+							<span class="sr-only">{{ __('Counting') }}</span>
+						</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-outline-gray-1 text-ink-gray-8">
+					<tr v-for="attempt in attempts" :key="attempt.name">
+						<td class="py-1.5 pe-2 tabular-nums">{{ attempt.attempt_no }}</td>
+						<td class="py-1.5 pe-2">
+							{{ formatResultDate(attempt.creation) }}
+						</td>
+						<td class="py-1.5 pe-2 tabular-nums">
+							{{ formatOutOf(attempt.score, attempt.score_out_of) }}
+						</td>
+						<td class="py-1.5 pe-2 tabular-nums">
+							{{ formatPercentage(attempt.percentage) }}
+						</td>
+						<td class="py-1.5">
+							<Badge v-if="isCountingAttempt(attempt)" size="sm" theme="blue">
+								{{ __('Counting') }}
+							</Badge>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
 	</section>
 </template>
 
