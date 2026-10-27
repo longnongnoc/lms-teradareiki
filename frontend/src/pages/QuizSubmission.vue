@@ -499,8 +499,15 @@ const user = inject('$user')
 // A learner is sent the link to their own submission, so the page opens for
 // them read-only. Whose submission may be read is the server's call: a
 // learner asking for anyone else's gets an error and is sent away.
+// The roles of the server's _is_staff.
 const isStaff = computed(
-	() => !!(user.data?.is_instructor || user.data?.is_moderator)
+	() =>
+		!!(
+			user.data?.is_instructor ||
+			user.data?.is_moderator ||
+			user.data?.is_evaluator ||
+			user.data?.is_system_manager
+		)
 )
 
 useKeyboardShortcuts({
@@ -520,14 +527,25 @@ const props = defineProps({
 	},
 })
 
+const refused = ref(false)
+
 const submissionDetails = createDocumentResource({
 	doctype: 'LMS Quiz Submission',
 	name: props.submission,
 	auto: true,
 	onError() {
-		if (!isStaff.value) router.push({ name: 'Courses' })
+		refused.value = true
 	},
 })
+
+// Decided only once the user has loaded: until then an instructor reads as a
+// learner and would be sent away too.
+watch(
+	() => refused.value && !!user.data && !isStaff.value,
+	(away) => {
+		if (away) router.push({ name: 'Courses' })
+	}
+)
 
 const submissionAnswers = createResource({
 	url: SUBMISSION_ANSWERS_METHOD,
@@ -735,9 +753,7 @@ const breadcrumbs = computed(() => {
 })
 
 const isOwnSubmission = computed(
-	() =>
-		user.data?.is_instructor &&
-		submissionDetails.doc?.member === user.data?.name
+	() => isStaff.value && submissionDetails.doc?.member === user.data?.name
 )
 
 const saveSubmission = (opts = {}) => {

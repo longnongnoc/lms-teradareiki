@@ -79,7 +79,10 @@ String.prototype.format = function (this: string, ...args: unknown[]): string {
 
 const LEARNER = 'learner@example.com'
 
-const mountPage = async (sessionUser: Record<string, unknown>) => {
+const mountPage = async (
+	sessionUser: Record<string, unknown> | null,
+	userResource: { data: unknown } = { data: sessionUser }
+) => {
 	const { default: QuizSubmission } = await import(
 		'@/pages/QuizSubmission.vue'
 	)
@@ -87,7 +90,7 @@ const mountPage = async (sessionUser: Record<string, unknown>) => {
 		props: { submission: 'SUB-1' },
 		global: {
 			mocks: { __: (s: string) => s },
-			provide: { $user: { data: sessionUser } },
+			provide: { $user: userResource },
 			stubs: { 'router-link': true },
 		},
 	})
@@ -164,7 +167,30 @@ describe('QuizSubmission opened by the learner', () => {
 	it('sends a learner away when the server refuses the submission', async () => {
 		const wrapper = await mountPage({ name: 'someone-else@example.com' })
 		held.docOptions.onError(new Error('PermissionError'))
+		await flushPromises()
 		expect(held.push).toHaveBeenCalledWith({ name: 'Courses' })
+		wrapper.unmount()
+	})
+
+	it('waits for the user before sending anyone away', async () => {
+		const userResource = reactive({ data: null as unknown })
+		const wrapper = await mountPage(null, userResource)
+		held.docOptions.onError(new Error('PermissionError'))
+		await flushPromises()
+		expect(held.push).not.toHaveBeenCalled()
+
+		userResource.data = { name: 'teacher@example.com', is_instructor: 1 }
+		await flushPromises()
+		expect(held.push).not.toHaveBeenCalled()
+		wrapper.unmount()
+	})
+
+	it('keeps the Save button for an evaluator', async () => {
+		const wrapper = await mountPage({
+			name: 'evaluator@example.com',
+			is_evaluator: 1,
+		})
+		expect(wrapper.find('[data-testid="save"]').exists()).toBe(true)
 		wrapper.unmount()
 	})
 
