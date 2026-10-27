@@ -1020,3 +1020,37 @@ describe('QuizForm: practical max marks', () => {
 		expect(lastSaved().practical_max_marks).toBe(0)
 	})
 })
+
+// Frappe's link check blocks deleting a quiz that has submissions or practical
+// scores (LinkExistsError); nothing cascades. The dialog and the toast say so.
+describe('QuizForm: deleting the quiz', () => {
+	const confirmDelete = async (wrapper: any) => {
+		await headerButton(wrapper, 'Delete')!.trigger('click')
+		const { message, actions } = $dialog.mock.calls.at(-1)![0]
+		actions[0].onClick({ close: vi.fn() })
+		await flushPromises()
+		return message
+	}
+
+	it('does not claim submissions are removed', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		const message = await confirmDelete(wrapper)
+
+		expect(message).not.toContain('and its submissions')
+		expect(message).toContain('cannot be deleted')
+	})
+
+	it('explains a delete blocked by linked submissions', async () => {
+		deleteSubmit.mockRejectedValueOnce({
+			exc_type: 'LinkExistsError',
+			messages: ['Cannot delete or cancel because LMS Quiz QZ-0001 is linked'],
+		})
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await confirmDelete(wrapper)
+
+		expect(toast.error).toHaveBeenCalledWith(
+			'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
+		)
+		expect(toast.success).not.toHaveBeenCalled()
+	})
+})

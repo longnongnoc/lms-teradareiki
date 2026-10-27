@@ -51910,3 +51910,11 @@ msgstr "提出後に空欄ごとの正誤を表示"
 #: frontend/src/pages/Forms/QuizForm.vue
 msgid "Accepted answers are shown only when Show Answers is on."
 msgstr "正解は「解答を表示」がオンの場合のみ表示されます。"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Deleting this quiz permanently removes it. Its questions stay in the question bank. A quiz that already has submissions or practical scores cannot be deleted. This action cannot be undone. Are you sure you want to continue?"
+msgstr "このクイズを完全に削除します。問題は問題バンクに残ります。提出物または実技点がすでにあるクイズは削除できません。この操作は元に戻せません。続行してもよろしいですか？"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted."
+msgstr "このクイズには提出物または実技点がすでにあるため削除できません。何も削除されていません。"

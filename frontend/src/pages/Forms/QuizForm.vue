@@ -549,8 +549,10 @@ const { $dialog } = getCurrentInstance().appContext.config.globalProperties
 const deleteQuiz = () => {
 	$dialog({
 		title: __('Delete this quiz?'),
+		// Frappe refuses to delete a doc that others link to, and LMS Quiz
+		// Submission and LMS Quiz Practical Score both link to the quiz.
 		message: __(
-			'Deleting this quiz permanently removes it and its submissions. This action cannot be undone. Are you sure you want to continue?'
+			'Deleting this quiz permanently removes it. Its questions stay in the question bank. A quiz that already has submissions or practical scores cannot be deleted. This action cannot be undone. Are you sure you want to continue?'
 		),
 		actions: [
 			{
@@ -565,7 +567,13 @@ const deleteQuiz = () => {
 							router.push({ name: 'Quizzes' })
 						})
 						.catch((err) => {
-							toast.error(err.messages?.[0] || __('Could not delete the quiz'))
+							toast.error(
+								err?.exc_type === 'LinkExistsError'
+									? __(
+											'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
+									  )
+									: resourceErrorMessage(err, __('Could not delete the quiz'))
+							)
 						})
 					close()
 				},
