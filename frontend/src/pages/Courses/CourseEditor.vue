@@ -196,7 +196,7 @@ function onLessonCreated({ name, chapter }) {
 	outline.reload()
 }
 
-// Reflect an autosaved lesson title/preview-flag in the shared outline
+// Reflect a saved lesson title/preview-flag in the shared outline
 // resource. `outline` here is the same cached instance CourseOutline renders,
 // so mutating it in place updates the sidebar with no extra request. A brand
 // new lesson needs a reload to pull in its outline row.
@@ -364,6 +364,7 @@ function saveSelectedLesson() {
 }
 
 const isDirty = computed(() => Boolean(lessonFormRef.value?.isDirty))
+const isSaving = computed(() => Boolean(lessonFormRef.value?.isSaving))
 
 // The phone's lesson stepper. Derived from the outline, which is already
 // loaded, rather than from the LessonForm child. Otherwise the buttons
@@ -421,6 +422,7 @@ function openAddChapter() {
 defineExpose({
 	saveSelectedLesson,
 	isDirty,
+	isSaving,
 	lessonHasVideo,
 	openVideoStats,
 	openAddChapter,
