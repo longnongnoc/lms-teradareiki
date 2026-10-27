@@ -5,8 +5,11 @@ import {
 	blankErrors,
 	blanksPayload,
 	blankToken,
+	duplicateBlankIds,
+	countFilledBlanks,
 	extractBlankIds,
 	hasFillBlankAnswer,
+	hasNearMissMarker,
 	hasValidBlanks,
 	indexBlankResults,
 	nextBlankId,
@@ -24,28 +27,27 @@ const row = (blank_id: string, answers = 'a', marks: number | string = 1) =>
 
 describe('extractBlankIds', () => {
 	it('lists each id once, in order of appearance', () => {
-		expect(extractBlankIds('<p>{{2}} and {{1}} and {{2}}</p>')).toEqual([
+		expect(extractBlankIds('<p>[[2]] and [[1]] and [[2]]</p>')).toEqual([
 			'2',
 			'1',
 		])
 	})
 
-	it('accepts the server pattern: padding inside, any non-space id', () => {
-		expect(extractBlankIds('{{ 1 }} {{a-b}} {{圧縮}}')).toEqual([
-			'1',
-			'a-b',
-			'圧縮',
-		])
+	it('accepts the server pattern: ASCII digits only', () => {
+		expect(extractBlankIds('[[1]] [[10]] [[007]]')).toEqual(['1', '10', '007'])
 	})
 
 	it('ignores broken tokens and empty input', () => {
-		expect(extractBlankIds('{{}} {{ }} {{a b}} {1} {{1}')).toEqual([])
+		expect(
+			extractBlankIds('[[]] [[ 1 ]] [[a]] [[a-b]] [[1.5]] [1] [[1] {{1}}')
+		).toEqual([])
+		expect(extractBlankIds('[[１]] [[１２]] [[圧縮]]')).toEqual([])
 		expect(extractBlankIds(null)).toEqual([])
 		expect(extractBlankIds(undefined)).toEqual([])
 	})
 
 	it('is repeatable, with no state kept between calls', () => {
-		const html = '{{1}}'
+		const html = '[[1]]'
 		expect(extractBlankIds(html)).toEqual(['1'])
 		expect(extractBlankIds(html)).toEqual(['1'])
 	})
@@ -68,7 +70,7 @@ describe('nextBlankId', () => {
 
 describe('splitBlankTokens', () => {
 	it('splits text and blanks in reading order', () => {
-		expect(splitBlankTokens('A {{1}} B{{ 2 }}')).toEqual([
+		expect(splitBlankTokens('A [[1]] B[[2]]')).toEqual([
 			{ type: 'text', value: 'A ' },
 			{ type: 'blank', id: '1' },
 			{ type: 'text', value: ' B' },
@@ -115,6 +117,89 @@ describe('syncBlanks', () => {
 			{ blank_id: '1', answers: '', marks: 1 },
 		])
 	})
+
+	describe('with a memory of removed rows', () => {
+		it('gives a row back, answers and marks, when its id returns', () => {
+			const removed = new Map<string, BlankRow>()
+			const gone = syncBlanks([row('1'), row('2', 'two', 3)], ['1'], removed)
+			expect(gone).toEqual([row('1')])
+			expect(removed.get('2')).toEqual(row('2', 'two', 3))
+
+			expect(syncBlanks(gone, ['1', '2'], removed)).toEqual([
+				row('1'),
+				row('2', 'two', 3),
+			])
+			expect(removed.size).toBe(0)
+		})
+
+		it('puts a returning row where its id now sits in the body', () => {
+			const removed = new Map<string, BlankRow>()
+			const gone = syncBlanks([row('1', 'one'), row('2', 'two')], ['2'], removed)
+			expect(syncBlanks(gone, ['1', '2'], removed)).toEqual([
+				row('1', 'one'),
+				row('2', 'two'),
+			])
+		})
+
+		it('still starts an id it never saw with no answers and one mark', () => {
+			const removed = new Map<string, BlankRow>([['9', row('9', 'nine')]])
+			expect(syncBlanks([row('1')], ['1', '2'], removed)).toEqual([
+				row('1'),
+				{ blank_id: '2', answers: '', marks: 1 },
+			])
+		})
+
+		it('remembers the latest row when an id is removed twice', () => {
+			const removed = new Map<string, BlankRow>()
+			syncBlanks([row('1', 'first')], [], removed)
+			const back = syncBlanks([], ['1'], removed)
+			expect(back).toEqual([row('1', 'first')])
+			syncBlanks([row('1', 'second')], [], removed)
+			expect(removed.get('1')).toEqual(row('1', 'second'))
+		})
+	})
+})
+
+describe('duplicateBlankIds', () => {
+	it('lists an id used more than once, once, in order', () => {
+		expect(duplicateBlankIds('[[2]] [[1]] [[2]] [[1]] [[2]] [[3]]')).toEqual([
+			'2',
+			'1',
+		])
+	})
+
+	it('is empty when every marker is distinct', () => {
+		expect(duplicateBlankIds('<p>[[1]] [[2]]</p>')).toEqual([])
+		expect(duplicateBlankIds(undefined)).toEqual([])
+	})
+})
+
+describe('hasNearMissMarker', () => {
+	it.each([
+		'<p>［［１］］</p>',
+		'<p>［［1］］</p>',
+		'<p>「「1」」</p>',
+		'<p>【【2】】</p>',
+		'<p>[[１]]</p>',
+		'<p>[[ 1 ]]</p>',
+		'<p>[[1]] and ［［２］］</p>',
+	])('flags %s', (html) => {
+		expect(hasNearMissMarker(html)).toBe(true)
+	})
+
+	it.each([
+		'<p>[[1]] [[22]]</p>',
+		'<p>plain text 1</p>',
+		'<p>[[1]</p>',
+		'<p>[[a]]</p>',
+		'',
+	])('leaves %s alone', (html) => {
+		expect(hasNearMissMarker(html)).toBe(false)
+	})
+
+	it('does not read markup as a marker', () => {
+		expect(hasNearMissMarker('<p [[1]]="x">ok</p>')).toBe(false)
+	})
 })
 
 describe('answers and marks rules', () => {
@@ -150,7 +235,7 @@ describe('answers and marks rules', () => {
 })
 
 describe('hasValidBlanks', () => {
-	const body = '<p>{{1}} then {{2}}</p>'
+	const body = '<p>[[1]] then [[2]]</p>'
 
 	it('accepts rows that match the tokens and are each valid', () => {
 		expect(hasValidBlanks(body, [row('1'), row('2')])).toBe(true)
@@ -165,6 +250,13 @@ describe('hasValidBlanks', () => {
 		expect(hasValidBlanks(body, [row('1')])).toBe(false)
 		expect(hasValidBlanks(body, [row('1'), row('3')])).toBe(false)
 		expect(hasValidBlanks(body, [row('1'), row('2'), row('3')])).toBe(false)
+	})
+
+	it('refuses a marker used twice, even though one row covers both', () => {
+		expect(hasValidBlanks('<p>[[1]] [[1]]</p>', [row('1')])).toBe(false)
+		expect(hasValidBlanks('<p>[[1]] [[2]]</p>', [row('1'), row('2')])).toBe(
+			true
+		)
 	})
 
 	it('refuses a duplicate id', () => {
@@ -218,6 +310,14 @@ describe('payload build and parse', () => {
 })
 
 describe('learner answers', () => {
+	it('counts the blanks that have text, ignoring spaces and ids it was not asked about', () => {
+		const ids = ['1', '2', '3']
+		expect(countFilledBlanks(ids, { '1': 'a', '2': '  ', '9': 'x' })).toBe(1)
+		expect(countFilledBlanks(ids, { '1': 'a', '2': 'b', '3': 'c' })).toBe(3)
+		expect(countFilledBlanks(ids, null)).toBe(0)
+		expect(countFilledBlanks([], { '1': 'a' })).toBe(0)
+	})
+
 	it('counts a question as answered when any blank has non-whitespace text', () => {
 		expect(hasFillBlankAnswer({ '1': '', '2': '  ' })).toBe(false)
 		expect(hasFillBlankAnswer({ '1': '', '2': 'x' })).toBe(true)
@@ -254,7 +354,7 @@ describe('learner answers', () => {
 
 describe('misc', () => {
 	it('writes a token', () => {
-		expect(blankToken(3)).toBe('{{3}}')
+		expect(blankToken(3)).toBe('[[3]]')
 		expect(extractBlankIds(blankToken('3'))).toEqual(['3'])
 	})
 

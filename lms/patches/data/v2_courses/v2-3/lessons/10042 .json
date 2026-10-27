@@ -1,0 +1,41 @@
+{
+    "name": "10042 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u56de\u8def\u56f3\u306e\u8aad\u307f\u65b9",
+    "owner": "Administrator",
+    "creation": "2026-10-20 18:09:17.040669",
+    "modified": "2026-10-20 18:09:17.040669",
+    "modified_by": "Administrator",
+    "docstatus": 0,
+    "idx": 0,
+    "title": "\u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u56de\u8def\u56f3\u306e\u8aad\u307f\u65b9",
+    "include_in_preview": 1,
+    "is_scorm_package": 0,
+    "chapter": "9901 \u5b9f\u7fd2\u30fb\u6f14\u7fd2\uff08\u56de\u8def\u56f3\u306e\u8aad\u307f\u65b9\uff09",
+    "course": "v2-3",
+    "content": "{\"time\":1792487229038,\"blocks\":[{\"id\":\"9c39e7a897\",\"type\":\"header\",\"data\":{\"text\":\"<span style=\\\"font-size:26px;font-weight:700;line-height:1.4;display:block;margin-top:26px;padding-bottom:8px;border-bottom:2px solid rgba(128, 128, 128, 0.35)\\\">\\u78ba\\u8a8d\\u30af\\u30a4\\u30ba\\uff1a\\u56de\\u8def\\u56f3\\u306e\\u8aad\\u307f\\u65b9</span>\",\"level\":2}},{\"id\":\"6d36c8890b\",\"type\":\"paragraph\",\"data\":{\"text\":\"<span style=\\\"display:block;font-size:16px;line-height:1.85\\\">\\u7814\\u4fee\\u306e\\u56de\\u8def\\u56f3\\u306e\\u8aad\\u307f\\u65b9\\u3092\\u78ba\\u8a8d\\u3057\\u307e\\u3057\\u3087\\u3046\\u3002</span>\"}},{\"id\":\"5add0aea5b\",\"type\":\"quiz\",\"data\":{\"quiz\":\"nar2n7ss82\"}}],\"version\":\"2.30.0\"}",
+    "body": null,
+    "instructor_content": null,
+    "instructor_notes": null,
+    "youtube": null,
+    "quiz_id": null,
+    "question": null,
+    "file_type": "",
+    "doctype": "Course Lesson",
+    "assessments": [
+        {
+            "name": "nb2e4ei9ol",
+            "owner": "Administrator",
+            "creation": "2026-10-20 18:09:17.044702",
+            "modified": "2026-10-20 18:09:17.044702",
+            "modified_by": "Administrator",
+            "docstatus": 0,
+            "idx": 1,
+            "assessment_type": "LMS Quiz",
+            "assessment_name": "nar2n7ss82",
+            "instructor_only": 0,
+            "parent": "10042 \u78ba\u8a8d\u30af\u30a4\u30ba\uff1a\u56de\u8def\u56f3\u306e\u8aad\u307f\u65b9",
+            "parentfield": "assessments",
+            "parenttype": "Course Lesson",
+            "doctype": "LMS Lesson Assessment"
+        }
+    ]
+}

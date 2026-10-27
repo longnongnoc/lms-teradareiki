@@ -244,6 +244,50 @@ class TestCheckAnswerEmptyInput(unittest.TestCase):
 		self.assertEqual(self.input_calls, ["my answer"])
 
 
+class TestFillBlankReviewGate(unittest.TestCase):
+	"""get_fill_blank_review hides the per-blank review from a learner when the quiz has Show
+	Answer Review off, and never from staff. Every lookup is patched, so no fixtures are needed."""
+
+	LEARNER = "learner@example.com"
+
+	def _review(self, show_answer_review, roles=("LMS Student",), user=None, member=None):
+		from lms.lms.doctype.lms_quiz import lms_quiz
+
+		member = member or self.LEARNER
+		user = user or member
+
+		def get_value(doctype, name, fields, as_dict=False):
+			if doctype == "LMS Quiz Submission":
+				return frappe._dict(quiz="QUIZ-1", member=member)
+			return frappe._dict(show_answers=0, show_answer_review=show_answer_review)
+
+		stored = [frappe._dict(question_name="QN-1", answer='{"1": "a"}', marks=0)]
+		with (
+			patch("frappe.db.get_value", side_effect=get_value),
+			patch("frappe.get_roles", return_value=list(roles)),
+			patch("frappe.has_permission", return_value=user != self.LEARNER),
+			patch("frappe.session", frappe._dict(user=user), create=True),
+			patch("frappe.get_all", return_value=stored),
+			patch.object(lms_quiz, "get_fill_blanks", return_value=[]),
+		):
+			return lms_quiz.get_fill_blank_review("SUB-1")
+
+	def test_learner_gets_the_review_when_it_is_on(self):
+		self.assertIn("QN-1", self._review(1))
+
+	def test_learner_gets_nothing_when_it_is_off(self):
+		self.assertEqual(self._review(0), {})
+
+	def test_a_quiz_saved_before_the_setting_still_shows_it(self):
+		self.assertIn("QN-1", self._review(None))
+
+	def test_privileged_role_gets_the_review_when_it_is_off(self):
+		self.assertIn("QN-1", self._review(0, roles=("Moderator",), user="admin@example.com"))
+
+	def test_other_staff_reading_the_submission_get_the_review_when_it_is_off(self):
+		self.assertIn("QN-1", self._review(0, user="evaluator@example.com"))
+
+
 class TestQuizResultValidation(unittest.TestCase):
 	"""submit_quiz validates the results payload item-by-item before process_results reads
 	result["question_name"] and result["answer"][0]. Malformed items must raise a clean

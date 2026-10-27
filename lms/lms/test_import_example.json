@@ -15,7 +15,7 @@
 					"questions": [
 						{
 							"type": "fill_blank",
-							"body": "<p>次の表の空欄に当てはまる機器名を答えてください。</p><table><thead><tr><th>機器</th><th>役割</th></tr></thead><tbody><tr><td>{{1}}</td><td>冷媒ガスを圧縮して高温高圧にする</td></tr><tr><td>{{2}}</td><td>冷媒ガスを冷却して液化する</td></tr><tr><td>{{3}}</td><td>冷媒液を蒸発させて熱を奪う</td></tr></tbody></table>",
+							"body": "<p>次の表の空欄に当てはまる機器名を答えてください。</p><table><thead><tr><th>機器</th><th>役割</th></tr></thead><tbody><tr><td>[[1]]</td><td>冷媒ガスを圧縮して高温高圧にする</td></tr><tr><td>[[2]]</td><td>冷媒ガスを冷却して液化する</td></tr><tr><td>[[3]]</td><td>冷媒液を蒸発させて熱を奪う</td></tr></tbody></table>",
 							"blanks": [
 								{"id": "1", "answers": ["圧縮機", "コンプレッサー"], "marks": 1},
 								{"id": "2", "answers": ["凝縮器", "コンデンサー"], "marks": 1},
@@ -24,7 +24,7 @@
 						},
 						{
 							"type": "fill_blank",
-							"body": "<p>冷媒の圧力を下げて温度を下げる装置を{{1}}と呼び、キャピラリーチューブもその一種です。</p>",
+							"body": "<p>冷媒の圧力を下げて温度を下げる装置を[[1]]と呼び、キャピラリーチューブもその一種です。</p>",
 							"blanks": [
 								{"id": "1", "answers": ["膨張弁", "ぼうちょうべん"], "marks": 2}
 							]

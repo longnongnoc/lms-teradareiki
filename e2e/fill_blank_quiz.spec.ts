@@ -1,7 +1,9 @@
 import { test, expect } from "./fixtures";
+import type { Locator } from "@playwright/test";
 import { button, deleteLeftovers, waitForApiCall } from "./helpers";
 import {
 	adminApi,
+	blankInput,
 	createQuiz,
 	fillBlankQuestion,
 	fillBlanks,
@@ -65,7 +67,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		const symbols = await insertDoc(
 			api,
 			fillBlankQuestion(
-				`<p>Maximum operating temperature {{1}}, unit of resistance {{2}}, test in katakana {{3}} (${runToken})</p>`,
+				`<p>Maximum operating temperature [[1]], unit of resistance [[2]], test in katakana [[3]] (${runToken})</p>`,
 				[
 					{ blank_id: "1", answers: DEGREE_C },
 					{ blank_id: "2", answers: GREEK_OMEGA },
@@ -85,7 +87,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		const image = await insertDoc(
 			api,
 			fillBlankQuestion(
-				`<p>Name of the product shown below {{1}} (${runToken})</p><p><img src="${LOGO_PATH}" alt="E2E product logo"></p>`,
+				`<p>Name of the product shown below [[1]] (${runToken})</p><p><img src="${LOGO_PATH}" alt="E2E product logo"></p>`,
 				[{ blank_id: "1", answers: "lms" }]
 			)
 		);
@@ -158,33 +160,51 @@ test.describe("Fill in the Blanks quiz", () => {
 		await expect(rows).toHaveCount(2);
 		await page.keyboard.type(".");
 
-		await expect(rows.nth(0)).toContainText("[1]");
-		await expect(rows.nth(1)).toContainText("[2]");
+		await expect(rows.nth(0)).toContainText("[[1]]");
+		await expect(rows.nth(1)).toContainText("[[2]]");
 
-		// Saving needs an accepted answer for every blank.
+		// Saving needs an accepted answer for every blank. Save stays enabled so a
+		// tap is never met with silence: an invalid one shows what is missing.
 		const save = draft.getByRole("button", { name: "Save question" });
-		await expect(save).toBeDisabled();
+		const missingAnswer = (row: Locator) =>
+			row.getByText("Add at least one accepted answer");
+		await expect(save).toBeEnabled();
+
+		// Nothing is flagged before the author has had a turn at the blanks.
+		await expect(missingAnswer(rows.nth(0))).toHaveCount(0);
+		await expect(missingAnswer(rows.nth(1))).toHaveCount(0);
+
+		// The red hint of a row waits for the author to leave its empty field.
+		const blank2 = rows.nth(1).locator("textarea");
+		await blank2.focus();
+		await blank2.blur();
+		await expect(missingAnswer(rows.nth(1))).toBeVisible();
+		await expect(missingAnswer(rows.nth(0))).toHaveCount(0);
+
+		// Save with both answers missing does not save: the draft stays open, no
+		// card joins the quiz, and every blank now says what it lacks.
+		await save.click();
+		await expect(missingAnswer(rows.nth(0))).toBeVisible();
+		await expect(missingAnswer(rows.nth(1))).toBeVisible();
+		await expect(draft).toBeVisible();
+		await expect(page.getByTestId("blank-count")).toHaveCount(0);
 
 		// Blank 1: two accepted answers, one per line.
 		await rows
 			.nth(0)
 			.locator("textarea")
 			.fill(`${COMPRESSOR}\n${COMPRESSOR_KANA}`);
-		await expect(save).toBeDisabled();
+		await expect(missingAnswer(rows.nth(0))).toHaveCount(0);
+		await expect(missingAnswer(rows.nth(1))).toBeVisible();
 
-		// The red hint waits for the author to leave the empty field.
-		const blank2 = rows.nth(1).locator("textarea");
-		await blank2.focus();
-		await blank2.blur();
-		await expect(
-			rows.nth(1).getByText("Add at least one accepted answer")
-		).toBeVisible();
-		await expect(save).toBeDisabled();
+		// Blank 2 is still empty, so a second try is refused as well.
+		await save.click();
+		await expect(draft).toBeVisible();
+		await expect(missingAnswer(rows.nth(1))).toBeVisible();
+		await expect(page.getByTestId("blank-count")).toHaveCount(0);
 
 		await blank2.fill("abc123");
-		await expect(
-			rows.nth(1).getByText("Add at least one accepted answer")
-		).toHaveCount(0);
+		await expect(missingAnswer(rows.nth(1))).toHaveCount(0);
 		await expect(save).toBeEnabled();
 
 		// One mark per blank by default, and the question is worth their sum.
@@ -192,7 +212,7 @@ test.describe("Fill in the Blanks quiz", () => {
 			"2 marks"
 		);
 		await expect(draft.getByTestId("fill-blank-total")).toContainText(
-			"2 marks"
+			"Total: 2 marks"
 		);
 
 		await save.click();
@@ -288,10 +308,26 @@ test.describe("Fill in the Blanks quiz", () => {
 		// of 0, which is what lets this second attempt happen at all.
 		await openQuiz(page, authoredQuiz as string);
 
-		await fillBlanks(page, { "1": COMPRESSOR, "2": "abc124" });
+		// Check with a blank still empty does not grade: it flags that blank and
+		// says why, rather than locking the question with the blank marked wrong.
+		await fillBlanks(page, { "1": COMPRESSOR });
+		await button(page, "Check").click();
+		await expect(page.getByTestId("empty-blank-warning")).toHaveText(
+			"Fill in every blank before checking"
+		);
+		await expect(blankInput(page, "2")).toHaveAttribute("aria-invalid", "true");
+		await expect(blankInput(page, "1")).not.toHaveAttribute(
+			"aria-invalid",
+			"true"
+		);
+		await expect(page.getByTestId("quiz-feedback")).toHaveCount(0);
+
+		// A wrong value in the second blank earns the first blank's mark only. It
+		// is neither right nor wrong overall, so the banner says "Partly correct".
+		await fillBlanks(page, { "2": "abc124" });
 		await button(page, "Check").click();
 		await expect(page.getByTestId("quiz-feedback")).toContainText(
-			"Incorrect, 1 of 2 marks"
+			"Partly correct, 1 of 2 marks"
 		);
 
 		const submit = waitForApiCall(page, SUBMIT_QUIZ_METHOD);

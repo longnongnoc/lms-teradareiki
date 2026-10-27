@@ -6,7 +6,7 @@
     "modified_by": "Administrator",
     "docstatus": 0,
     "idx": 0,
-    "question": "<p><small>\u3010\u2460 \u96fb\u6c17\u306e\u57fa\u790e\uff0845\u70b9\uff09\u3011</small></p><p>\u96fb\u5727</p><p>\u30fbL1\u2013N \u2192 {{1}}</p><p>\u30fbL2\u2013N \u2192 {{2}}</p><p>\u30fbL1\u2013L2 \u2192 {{3}}</p>",
+    "question": "<p><small>\u3010\u2460 \u96fb\u6c17\u306e\u57fa\u790e\uff0845\u70b9\uff09\u3011</small></p><p>\u96fb\u5727</p><p>\u30fbL1\u2013N \u2192 [[1]]</p><p>\u30fbL2\u2013N \u2192 [[2]]</p><p>\u30fbL1\u2013L2 \u2192 [[3]]</p>",
     "type": "Fill Blank",
     "multiple": 0,
     "marks": 3,

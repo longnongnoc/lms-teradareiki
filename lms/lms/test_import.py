@@ -6,7 +6,7 @@
 The document format is described by lms/lms/test_import_schema.py and shown in
 lms/lms/test_import_example.json. Top level: {"tests": [{title, passing_percentage,
 sections: [{title, questions: [...]}], ...}]}. Question types: fill_blank (body with
-{{1}} {{2}} markers plus blanks), single_choice, multiple_choice, user_input.
+[[1]] [[2]] markers plus blanks), single_choice, multiple_choice, user_input.
 
 Always run a dry run first, it validates everything and writes nothing:
 

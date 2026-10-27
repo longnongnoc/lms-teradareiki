@@ -141,7 +141,7 @@ export function choiceQuestion(text: string, marks = 1) {
 
 export type BlankSpec = { blank_id: string; answers: string; marks?: number };
 
-// `html` carries the {{n}} markers; the marks of the question are the sum of
+// `html` carries the [[n]] markers; the marks of the question are the sum of
 // the blanks, which LMS Question.validate_fill_blanks recomputes anyway.
 export function fillBlankQuestion(html: string, blanks: BlankSpec[]) {
 	const rows = blanks.map((blank) => ({
@@ -288,10 +288,16 @@ export async function openQuiz(page: Page, quizName: string) {
 	await start.click();
 }
 
-// One text input per blank, aria-labelled "Blank N" (QuizQuestionBody.vue).
+// One text input per blank, aria-labelled "Blank N of M" (QuizQuestionBody.vue),
+// where N is the blank's position in the question. The specs write the blanks
+// in order, so N is also the blank id. M is not worth hard-coding in each spec.
+export function blankInput(page: Page, id: string) {
+	return page.getByLabel(new RegExp(`^Blank ${id} of \\d+$`));
+}
+
 export async function fillBlanks(page: Page, answers: Record<string, string>) {
 	for (const [id, value] of Object.entries(answers)) {
-		await page.getByLabel(`Blank ${id}`, { exact: true }).fill(value);
+		await blankInput(page, id).fill(value);
 	}
 }
 

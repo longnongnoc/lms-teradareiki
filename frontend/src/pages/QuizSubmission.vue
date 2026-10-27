@@ -113,7 +113,7 @@
 									<!-- A margin, not whitespace: Vue's `condense` strips a
 									     whitespace-only node between two elements when it spans
 									     a newline, so the gap has to be a real style. -->
-									<span class="me-2 text-ink-gray-4">
+									<span class="me-2 text-ink-gray-6">
 										{{ __('Q{0}:').format(index + 1) }}
 									</span>
 									<template v-if="isFillBlankRow(row)">
@@ -125,22 +125,48 @@
 											:html="row.question"
 											:results="blankResults(row)"
 										/>
-										<span
-											v-else-if="fillBlankReview.error"
-											class="text-ink-gray-6"
-										>
-											{{ __('Could not load the blank results.') }}
-										</span>
-										<span v-else class="text-ink-gray-6">{{
-											__('Loading')
-										}}</span>
+										<template v-else>
+											<!-- What the learner typed, read-only, so the page still shows
+											     the answers while the blank results are missing. -->
+											<QuizQuestionBody
+												class="mt-1 leading-10 sm:leading-9 [&_img]:h-auto [&_img]:max-w-full"
+												fillBlank
+												disabled
+												:html="row.question"
+												:answers="typedAnswers(row)"
+											/>
+											<span
+												v-if="fillBlankReview.error"
+												class="mt-1 block text-sm text-ink-gray-6"
+											>
+												{{ __('Could not load the blank results.') }}
+											</span>
+											<span
+												v-else-if="fillBlankReview.data"
+												class="mt-1 block text-sm text-ink-gray-6"
+											>
+												{{
+													__('The blank results are not shown for this quiz.')
+												}}
+											</span>
+											<span
+												v-else
+												role="status"
+												class="mt-1 flex items-center gap-1.5 text-sm text-ink-gray-6"
+											>
+												<LoadingIndicator class="size-4" />
+												{{ __('Loading') }}
+											</span>
+										</template>
 									</template>
 									<span v-else v-safe-html:rich="row.question" />
 								</div>
 								<span
 									class="mt-2 size-1.5 shrink-0 rounded-full"
 									:class="markStatusClass(row)"
-								/>
+								>
+									<span class="sr-only">{{ markStatusLabel(row) }}</span>
+								</span>
 							</div>
 							<!-- Same shape as the question above: the label runs inline with
 							     the text it introduces, so a wrapped answer returns to the
@@ -152,7 +178,7 @@
 								class="text-base leading-6 text-ink-gray-6 [&_p]:m-0 [&_p]:inline"
 							>
 								<span
-									class="me-2 text-xs font-medium uppercase tracking-wide text-ink-gray-4"
+									class="me-2 text-xs font-medium uppercase tracking-wide text-ink-gray-6"
 								>
 									{{ __('Answer:') }}
 								</span>
@@ -165,7 +191,7 @@
 						     rather than a figure adrift at the far edge of the screen. -->
 						<div class="flex shrink-0 items-center gap-1.5">
 							<span
-								class="text-xs font-medium uppercase tracking-wide text-ink-gray-4 lg:hidden"
+								class="text-xs font-medium uppercase tracking-wide text-ink-gray-6 lg:hidden"
 							>
 								{{ __('Marks:') }}
 							</span>
@@ -301,7 +327,7 @@
 						</h2>
 						<span
 							v-if="violationLog.data?.length"
-							class="text-sm text-ink-gray-4"
+							class="text-sm text-ink-gray-6"
 						>
 							({{ violationLog.data.length }})
 						</span>
@@ -346,7 +372,7 @@
 									>
 										{{ severityLabel(entry.severity) }}
 									</span>
-									<span class="text-ink-gray-4">
+									<span class="text-ink-gray-6">
 										· {{ formatTime(entry.timestamp) }}
 									</span>
 								</div>
@@ -412,6 +438,7 @@ import {
 	call,
 	usePageMeta,
 	toast,
+	LoadingIndicator,
 } from 'frappe-ui'
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDebounceFn, useMediaQuery } from '@vueuse/core'
@@ -420,7 +447,7 @@ import PageHeader from '@/components/Layouts/pages/PageHeader.vue'
 import PageBody from '@/components/Layouts/pages/PageBody.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
 import QuizQuestionBody from '@/components/Quiz/QuizQuestionBody.vue'
-import { indexBlankResults } from '@/utils/fillBlank'
+import { indexBlankResults, parseFillBlankAnswer } from '@/utils/fillBlank'
 import { describeChoiceAnswer } from '@/utils/optionKey'
 import {
 	SUMMARY_METHOD,
@@ -524,6 +551,7 @@ watch(
 
 const blankReview = (row) => fillBlankReview.data?.[row.question_name]
 const blankResults = (row) => indexBlankResults(blankReview(row)?.results)
+const typedAnswers = (row) => parseFillBlankAnswer(row.answer)
 
 // Said in two places — the header spells it out, the popover carries it on a
 // phone — so it is written once.
@@ -618,6 +646,15 @@ watch(isDesktop, (desktop) => {
 // milder of them rather than surfacing a raw value.
 const severityLabel = (severity) =>
 	severity === 'violation' ? __('Violation') : __('Warning')
+
+// The dot's colour alone says nothing to a screen reader. An open-ended mark is
+// the grader's to give, so its dot reads as the marks rather than a verdict.
+const markStatusLabel = (row) => {
+	if (isOpenEnded.value)
+		return __('{0} of {1} marks').format(row.marks, row.marks_out_of)
+	if (row.marks == row.marks_out_of) return __('Correct')
+	return row.marks > 0 ? __('Partly correct') : __('Incorrect')
+}
 
 const markStatusClass = (row) => {
 	if (row.marks == row.marks_out_of) return 'bg-surface-green-6'

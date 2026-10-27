@@ -8,17 +8,17 @@ on:
         required: false
         default: ""
       image_tag:
-        description: Optional LMS image tag to deploy
-        required: false
+        description: LMS image tag to deploy, e.g. sha-1a2b3c4 (required; the Build LMS image summary lists the tag of each build)
+        required: true
         default: ""
   push:
     branches: [main]
     paths:
       - "deploy/**"
-
-concurrency:
-  group: deploy-lms
-  cancel-in-progress: false
+  workflow_run:
+    workflows: ["Build LMS image"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -30,23 +30,100 @@ env:
 
 jobs:
   deploy:
+    # Only builds from a push to main deploy automatically; a dispatched build can
+    # build another lms_ref but still tags sha-<main sha>, so it must not deploy itself.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      DEPLOY_REF: ${{ inputs.ref || github.ref_name }}
-      DEPLOY_IMAGE_TAG: ${{ inputs.image_tag }}
+    permissions:
+      contents: read
+      packages: read
+    # Concurrency is at job level so a skipped run (failed or dispatched build) does
+    # not enter the group and replace a pending deploy.
+    concurrency:
+      group: deploy-lms
+      cancel-in-progress: false
     steps:
-      - name: Validate inputs
+      - name: Resolve ref and image tag
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_REF: ${{ inputs.ref }}
+          INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+          RUN_HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          set -euo pipefail
+          case "$EVENT" in
+            workflow_run)
+              # The image the triggering build pushed, from the commit it built.
+              ref="$RUN_HEAD_BRANCH"
+              tag="sha-${RUN_HEAD_SHA::7}"
+              source="Build LMS image run on $RUN_HEAD_SHA"
+              ;;
+            workflow_dispatch)
+              ref="${INPUT_REF:-$GITHUB_REF_NAME}"
+              tag="$INPUT_IMAGE_TAG"
+              source="manual dispatch"
+              if [[ -z "$tag" ]]; then
+                echo "::error::image_tag is required. An empty tag would redeploy the image pinned in /opt/lms/.env and still report success. Pass the sha-<7char> tag from the Build LMS image run you want to deploy." >&2
+                exit 1
+              fi
+              ;;
+            push)
+              # deploy/** changed: apply the new deploy files with the image already pinned in /opt/lms/.env.
+              ref="$GITHUB_REF_NAME"
+              tag=""
+              source="push to deploy/**"
+              ;;
+            *)
+              echo "Unsupported event: $EVENT" >&2
+              exit 1
+              ;;
+          esac
           safe='^[A-Za-z0-9._/][A-Za-z0-9._/-]*$'
-          if ! [[ "$DEPLOY_REF" =~ $safe ]]; then
+          if ! [[ "$ref" =~ $safe ]]; then
             echo "Invalid ref" >&2
             exit 1
           fi
-          if [[ -n "$DEPLOY_IMAGE_TAG" ]] && ! [[ "$DEPLOY_IMAGE_TAG" =~ $safe ]]; then
+          if [[ -n "$tag" ]] && ! [[ "$tag" =~ ^[A-Za-z0-9._][A-Za-z0-9._-]*$ ]]; then
             echo "Invalid image tag" >&2
             exit 1
           fi
+          echo "DEPLOY_REF=$ref" >> "$GITHUB_ENV"
+          echo "DEPLOY_IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+          {
+            echo "### Deploy LMS"
+            echo
+            echo "- Trigger: $source"
+            echo "- Ref: \`$ref\`"
+            if [[ -n "$tag" ]]; then
+              echo "- Image tag: \`$tag\`"
+            else
+              echo "- Image tag: unchanged (the one pinned in \`/opt/lms/.env\`)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check the image exists
+        if: env.DEPLOY_IMAGE_TAG != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # deploy.sh writes the tag into /opt/lms/.env before pulling, so a missing tag would
+          # leave .env pointing at an image that does not exist. The GHCR package is private:
+          # log in with the job token (packages: read), which can read it because this
+          # repository's Build LMS image workflow publishes it.
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/terada-lms:${DEPLOY_IMAGE_TAG}"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin > /dev/null
+          if ! docker manifest inspect "$image" > /dev/null; then
+            echo "::error::$image not found in GHCR" >&2
+            exit 1
+          fi
+          echo "Found $image"
 
       - name: Find instance
         run: |
@@ -70,7 +147,7 @@ jobs:
           command_id=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
-            --comment "Deploy LMS $GITHUB_SHA" \
+            --comment "Deploy LMS $DEPLOY_REF ${DEPLOY_IMAGE_TAG:-pinned image}" \
             --timeout-seconds 1800 \
             --parameters "$params" \
             --query Command.CommandId --output text)

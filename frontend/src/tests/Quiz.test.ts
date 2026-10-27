@@ -170,8 +170,12 @@ const quizResponse = () => ({
 let mountedQuizzes = 0
 
 // A distinct idPrefix per mount, as mountBlock gives each lesson block.
-const mountQuiz = (props: Record<string, unknown> = {}) =>
+const mountQuiz = (
+	props: Record<string, unknown> = {},
+	options: Record<string, unknown> = {}
+) =>
 	mount(Quiz, {
+		...options,
 		props: { quizName: 'QUIZ-1', ...props },
 		global: {
 			config: { idPrefix: `quiz-${++mountedQuizzes}` },
@@ -577,7 +581,7 @@ describe('Quiz fill in the blanks', () => {
 			name: 'Q1',
 			type: 'Fill Blank',
 			question:
-				'<p>The {{1}} compresses.</p><table><tbody><tr><td>{{2}}</td></tr></tbody></table>',
+				'<p>The [[1]] compresses.</p><table><tbody><tr><td>[[2]]</td></tr></tbody></table>',
 			blanks: [
 				{ blank_id: '1', marks: 1 },
 				{ blank_id: '2', marks: 2 },
@@ -605,7 +609,7 @@ describe('Quiz fill in the blanks', () => {
 
 	const begin = async (quiz: Record<string, unknown> = {}) => {
 		resourceState.response = fillBlankResponse(quiz)
-		const wrapper = mountQuiz()
+		const wrapper = mountQuiz({}, { attachTo: document.body })
 		await flushPromises()
 		await startQuiz(wrapper)
 		return wrapper
@@ -615,26 +619,94 @@ describe('Quiz fill in the blanks', () => {
 		const wrapper = await begin()
 		const inputs = wrapper.findAll('input[type="text"]')
 		expect(inputs.map((i) => i.attributes('aria-label'))).toEqual([
-			'Blank 1',
-			'Blank 2',
+			'Blank 1 of 2',
+			'Blank 2 of 2',
 		])
-		expect(wrapper.text()).not.toContain('{{')
+		expect(wrapper.text()).not.toContain('[[')
 		expect(wrapper.text()).toContain('Fill in each blank')
 		expect(wrapper.find('td input').exists()).toBe(true)
+		expect(wrapper.text()).toContain('1 mark')
+		const body = wrapper.get('input[type="text"]').element.closest('.leading-10')
+		expect(body).not.toBeNull()
+		expect(body?.classList.contains('font-semibold')).toBe(false)
 		wrapper.unmount()
 	})
 
-	it('counts the question answered once any blank has text, and sends one JSON string', async () => {
+	it('saves a started question as one JSON string, and calls it answered once every blank has text', async () => {
 		const wrapper = await begin()
 		expect(nav(wrapper)[0]).toBe('Question 1, not answered')
 
 		await wrapper.findAll('input[type="text"]')[0].setValue('圧縮機')
 		await press(wrapper, 'Next')
-
-		expect(nav(wrapper)[0]).toBe('Question 1, answered')
 		expect(savedAnswer()).toEqual([
 			{ question_name: 'Q1', answer: ['{"1":"圧縮機","2":""}'] },
 		])
+
+		await press(wrapper, 'Previous')
+		await wrapper.findAll('input[type="text"]')[1].setValue('ループ')
+		await press(wrapper, 'Next')
+		expect(nav(wrapper)[0]).toBe('Question 1, answered')
+		expect(savedAnswer()).toEqual([
+			{ question_name: 'Q1', answer: ['{"1":"圧縮機","2":"ループ"}'] },
+		])
+		wrapper.unmount()
+	})
+
+	it('shows a partly filled question apart in the navigator, with how many blanks are filled', async () => {
+		const wrapper = await begin()
+		const chip = () => wrapper.find('nav').findAll('button')[0]
+
+		await wrapper.findAll('input[type="text"]')[0].setValue('圧縮機')
+		await press(wrapper, 'Next')
+		expect(nav(wrapper)[0]).toBe('Question 1, 1 of 2 blanks filled')
+		expect(chip().classes()).toContain('bg-surface-amber-2')
+		expect(chip().classes()).not.toContain('bg-surface-blue-2')
+
+		await press(wrapper, 'Previous')
+		await wrapper.findAll('input[type="text"]')[1].setValue('ループ')
+		await press(wrapper, 'Next')
+		expect(chip().classes()).toContain('bg-surface-blue-2')
+		expect(chip().classes()).not.toContain('bg-surface-amber-2')
+		wrapper.unmount()
+	})
+
+	it('says how many blanks are still empty before submitting, once a question was left half done', async () => {
+		const wrapper = await begin()
+		await wrapper.findAll('input[type="text"]')[0].setValue('圧縮機')
+		await press(wrapper, 'Next')
+		await press(wrapper, 'Submit')
+
+		expect(wrapper.get('[data-testid="empty-blanks-note"]').text()).toBe(
+			'1 blank is still empty'
+		)
+		wrapper.unmount()
+	})
+
+	it('has no such line when every started question is complete or untouched', async () => {
+		const wrapper = await begin()
+		await press(wrapper, 'Next')
+		await press(wrapper, 'Submit')
+		expect(wrapper.find('[data-testid="empty-blanks-note"]').exists()).toBe(
+			false
+		)
+		wrapper.unmount()
+	})
+
+	it('counts empty blanks across questions in the plural', async () => {
+		const response = fillBlankResponse()
+		response.questions_by_name.Q1.blanks.push({ blank_id: '3', marks: 1 })
+		response.questions_by_name.Q1.question += '<p>[[3]]</p>'
+		resourceState.response = response
+		const wrapper = mountQuiz()
+		await flushPromises()
+		await startQuiz(wrapper)
+		await wrapper.findAll('input[type="text"]')[0].setValue('圧縮機')
+		await press(wrapper, 'Next')
+		await press(wrapper, 'Submit')
+
+		expect(wrapper.get('[data-testid="empty-blanks-note"]').text()).toBe(
+			'2 blanks are still empty'
+		)
 		wrapper.unmount()
 	})
 
@@ -701,9 +773,6 @@ describe('Quiz fill in the blanks', () => {
 		} as any
 		const wrapper = await begin({ show_answers: 1 })
 
-		await press(wrapper, 'Check')
-		expect(wrapper.find('[data-testid="blank-result"]').exists()).toBe(false)
-
 		const inputs = wrapper.findAll('input[type="text"]')
 		await inputs[0].setValue('圧縮機')
 		await inputs[1].setValue('x')
@@ -711,13 +780,134 @@ describe('Quiz fill in the blanks', () => {
 
 		const chips = wrapper.findAll('[data-testid="blank-result"]')
 		expect(chips).toHaveLength(2)
-		expect(chips[0].text()).toContain('1 of 1')
+		// A right blank worth one mark needs no score beside its tick.
+		expect(chips[0].text()).not.toContain('marks')
+		expect(chips[1].text()).toContain('0 of 2 marks')
 		expect(chips[1].text()).toContain('Accepted answers: 凝縮器')
-		expect(wrapper.find('[data-testid="quiz-feedback"]').text()).toBe(
-			'Incorrect, 1 of 3 marks'
-		)
+		const banner = wrapper.get('[data-testid="quiz-feedback"]')
+		expect(banner.text()).toBe('Partly correct, 1 of 3 marks')
+		expect(banner.classes().join(' ')).toContain('amber')
 		expect(wrapper.findAll('input[type="text"]')).toHaveLength(0)
 		wrapper.unmount()
+	})
+
+	it('calls a question with no marks at all incorrect, not partly correct', async () => {
+		resourceState.checkAnswer = {
+			results: [
+				{
+					blank_id: '1',
+					answer: 'x',
+					is_correct: false,
+					marks: 0,
+					marks_out_of: 1,
+				},
+				{
+					blank_id: '2',
+					answer: 'y',
+					is_correct: false,
+					marks: 0,
+					marks_out_of: 2,
+				},
+			],
+			marks: 0,
+			marks_out_of: 3,
+			is_correct: false,
+		} as any
+		const wrapper = await begin({ show_answers: 1 })
+		const inputs = wrapper.findAll('input[type="text"]')
+		await inputs[0].setValue('x')
+		await inputs[1].setValue('y')
+		await press(wrapper, 'Check')
+
+		const banner = wrapper.get('[data-testid="quiz-feedback"]')
+		expect(banner.text()).toBe('Incorrect, 0 of 3 marks')
+		expect(banner.classes().join(' ')).toContain('red')
+		wrapper.unmount()
+	})
+
+	it('does not check while a blank is empty: it flags the empty ones, says why and focuses the first', async () => {
+		const wrapper = await begin({ show_answers: 1 })
+		const inputs = () => wrapper.findAll('input[type="text"]')
+		await inputs()[1].setValue('ループ')
+
+		await press(wrapper, 'Check')
+		expect(resourceState.request).not.toHaveBeenCalledWith(
+			'lms.lms.doctype.lms_quiz.lms_quiz.check_answer',
+			expect.anything()
+		)
+		expect(wrapper.find('[data-testid="blank-result"]').exists()).toBe(false)
+		expect(wrapper.get('[data-testid="empty-blank-warning"]').text()).toBe(
+			'Fill in every blank before checking'
+		)
+		expect(inputs()[0].classes()).toContain('border-outline-amber-5')
+		expect(inputs()[0].attributes('aria-invalid')).toBe('true')
+		expect(inputs()[1].classes()).not.toContain('border-outline-amber-5')
+		expect(document.activeElement).toBe(inputs()[0].element)
+
+		await inputs()[0].setValue('圧縮機')
+		expect(wrapper.find('[data-testid="empty-blank-warning"]').exists()).toBe(
+			false
+		)
+		expect(inputs()[0].classes()).not.toContain('border-outline-amber-5')
+		wrapper.unmount()
+	})
+
+	it('flags every blank when none is filled, instead of toasting', async () => {
+		const wrapper = await begin({ show_answers: 1 })
+		await press(wrapper, 'Check')
+		expect(wrapper.find('[data-testid="empty-blank-warning"]').exists()).toBe(
+			true
+		)
+		expect(
+			wrapper
+				.findAll('input[type="text"]')
+				.every((i) => i.classes().includes('border-outline-amber-5'))
+		).toBe(true)
+		wrapper.unmount()
+	})
+
+	it('carries Enter on the last blank on to the main button', async () => {
+		const wrapper = await begin({ show_answers: 1 })
+		const inputs = wrapper.findAll('input[type="text"]')
+		inputs[1].element.focus()
+		inputs[1].element.dispatchEvent(
+			new KeyboardEvent('keydown', {
+				key: 'Enter',
+				bubbles: true,
+				cancelable: true,
+			})
+		)
+		await flushPromises()
+		expect((document.activeElement as HTMLElement).textContent?.trim()).toBe(
+			'Check'
+		)
+		wrapper.unmount()
+	})
+
+	it('adds the Fill Blank rule to the negative marking tip, only for a quiz that has one', async () => {
+		resourceState.response = fillBlankResponse({
+			enable_negative_marking: 1,
+			marks_to_cut: 1,
+		})
+		const withBlank = mountQuiz()
+		await flushPromises()
+		expect(withBlank.text()).toContain('Wrong answers deduct 1 mark.')
+		expect(withBlank.text()).toContain(
+			'Fill in the Blanks questions lose marks only when every blank is wrong.'
+		)
+		withBlank.unmount()
+
+		const response = choicesQuizResponse(2)
+		Object.assign(response.quiz, {
+			enable_negative_marking: 1,
+			marks_to_cut: 1,
+		})
+		resourceState.response = response
+		const plain = mountQuiz()
+		await flushPromises()
+		expect(plain.text()).toContain('Wrong answers deduct 1 mark.')
+		expect(plain.text()).not.toContain('Fill in the Blanks questions')
+		plain.unmount()
 	})
 
 	it('lists the filled-in questions on the result once submitted, fetching the review', async () => {
@@ -763,6 +953,23 @@ describe('Quiz fill in the blanks', () => {
 		expect(section.text()).toContain('1 of 3 marks')
 		expect(section.findAll('[data-testid="blank-result"]')).toHaveLength(2)
 		expect(section.text()).toContain('No answer')
+		wrapper.unmount()
+	})
+
+	it('shows no review section when the server returns none, as for a learner with Show Answer Review off', async () => {
+		const wrapper = await begin({ show_answer_review: 0 })
+		;(wrapper.vm as any).quizSubmission.data = {
+			submission: 'SUB-1',
+			percentage: 50,
+			score: 1,
+			score_out_of: 3,
+		}
+		;(wrapper.vm as any).fillBlankReview.data = {}
+		await flushPromises()
+
+		expect(wrapper.find('[data-testid="fill-blank-review"]').exists()).toBe(
+			false
+		)
 		wrapper.unmount()
 	})
 })

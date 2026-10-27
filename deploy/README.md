@@ -14,19 +14,34 @@ Infrastructure (EC2, S3, SSM parameters) lives in `infra/`.
 ## How deploys work
 
 1. `user_data` clones the repo to `/opt/lms-repo` and runs `deploy.sh <ref>` once.
-2. The `Deploy LMS` workflow runs the same script through SSM Run Command, on dispatch
-   or on push to develop/main/feature/deploy-aws-terraform touching `deploy/**`.
+2. The `Deploy LMS` workflow runs the same script through SSM Run Command. See
+   "Deploy triggers" below for what starts it and which image it deploys.
 3. The script reads `/opt/lms/.env`, checks out the ref, writes `/opt/lms/secrets.env`
-   from SSM (mode 600), pulls images, runs `up -d`, waits up to 10 minutes for
-   `/api/method/ping`, and runs `bench migrate` when the image changed.
+   from SSM (mode 600), pulls images, and, when the pulled image differs from the
+   last deployed one (`/opt/lms/deployed-image-id`) and the backend is running, runs
+   `backup.sh` before touching the stack (a failed backup aborts the deploy). It then
+   runs `up -d`, waits up to 10 minutes for `/api/method/ping`, and runs
+   `bench migrate` when the image changed.
 4. The site is created by `create-site`. If the site already exists, it installs any
    missing `payments` or `lms` app, so a partially created site is repaired.
 
 The DB root password only takes effect when the `db-data` volume is first created.
 
+## Deploy triggers
+
+- After merge to main, `Build LMS image` builds and pushes `ghcr.io/18phongnguyen/terada-lms:main` and `:sha-<7char>`. When that run succeeds and was started by a push, `Deploy LMS` starts (`workflow_run`) and deploys ref `main` with image tag `sha-<7char>` of the commit the build ran on. `deploy.sh` rewrites `LMS_IMAGE` in `/opt/lms/.env` to that tag, backs up, recreates containers and runs `bench migrate` because the image changed. A failed or cancelled build deploys nothing; a dispatched build never deploys itself.
+- A push to main touching only `deploy/**` (`Build LMS image` ignores those paths) runs `Deploy LMS` without an image tag: new deploy files, same pinned image. A push touching both app code and `deploy/**` deploys twice: first the deploy files with the old image, then the new image when the build finishes.
+- Manual dispatch (rollback, redeploy): `image_tag` is required. The workflow fails before touching the instance if it is empty or the tag is not in GHCR. To redeploy what is running, pass the tag pinned in `/opt/lms/.env` (shown in the previous run's summary and in the deploy log line `LMS_IMAGE set to ...`). For example:
+
+      gh workflow run "Deploy LMS" -f image_tag=sha-1a2b3c4
+
+- Why the tag is required: on 2026-10-21 a dispatch without `image_tag` redeployed the pinned `sha-6487cf3` and reported success while main had newer builds.
+- Deploys share the `deploy-lms` concurrency group: one runs at a time, and a newer queued deploy replaces an older queued one. Re-running an old successful `Build LMS image` run redeploys that older image (a way to roll back, but do it on purpose).
+- The `workflow_run` trigger only takes effect from the copy of `deploy.yml` on the default branch.
+
 ## LMS image
 
-The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/18phongnguyen/terada-lms`, from the fork https://github.com/18PhongNguyen/terada-lms. The GHCR package must be public so the instance can pull it anonymously.
+The official `ghcr.io/frappe/lms` image is broken (it contains only frappe, without lms and payments). The image is built by the `Build LMS image` workflow into GHCR as `ghcr.io/18phongnguyen/terada-lms`, from the fork https://github.com/18PhongNguyen/terada-lms. The GHCR package is private: the instance pulls with its own registry credentials, and `Deploy LMS` checks that a tag exists by logging in with the job token (`packages: read`).
 
 Build with `frappe_branch` and `payments_ref` set to `develop` (the workflow defaults). The fork's frontend imports `useDataImport` and `DataImportWizard` from `@framework/ui`, which exist only on frappe `develop`; on `version-16` `vite build` fails with `"useDataImport" is not exported by node_modules/@framework/ui/src/components/DataImport/index.ts`.
 

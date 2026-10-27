@@ -12,6 +12,7 @@ from frappe import _
 from frappe.utils import cint, escape_html, get_files_path, validate_email_address
 from frappe.utils.file_manager import is_safe_path
 
+from lms.lms.fill_blank import LEGACY_TOKEN, convert_markers
 from lms.lms.utils import create_user as create_lms_user
 from lms.lms.utils import get_editorjs_blocks, has_moderator_role
 
@@ -801,6 +802,24 @@ def drop_source_site_authors(data):
 	data.pop("authors", None)
 
 
+def convert_legacy_fill_blank(question_data):
+	"""Bring a Fill Blank question exported with `{{id}}` markers to `[[n]]` markers.
+
+	Exports made before the marker change (and the bundled v2 course data) carry the old
+	syntax, which validate_fill_blanks would refuse. The blank rows follow the same
+	renumbering as the text.
+	"""
+	if question_data.get("type") != "Fill Blank" or not LEGACY_TOKEN.search(
+		question_data.get("question") or ""
+	):
+		return
+	rows = question_data.get("blanks") or []
+	plan = convert_markers(question_data["question"], [row.get("blank_id") for row in rows])
+	question_data["question"] = plan["text"]
+	for row, blank_id in zip(rows, plan["row_ids"], strict=True):
+		row["blank_id"] = blank_id
+
+
 def create_question_doc(zip_file, file):
 	question_data = read_json_from_zip(zip_file, file)
 	if question_data:
@@ -810,6 +829,7 @@ def create_question_doc(zip_file, file):
 				{"blank_id": row.get("blank_id"), "answers": row.get("answers"), "marks": row.get("marks")}
 				for row in question_data["blanks"]
 			]
+		convert_legacy_fill_blank(question_data)
 		doc = frappe.new_doc("LMS Question")
 		doc.update(question_data)
 		doc.insert(ignore_permissions=True)
@@ -819,6 +839,11 @@ def add_questions_to_quiz(quiz_doc, questions):
 	for question in questions:
 		question_detail = question["question_detail"]
 		question_name = frappe.db.get_value("LMS Question", {"question": question_detail}, "name")
+		if not question_name and LEGACY_TOKEN.search(question_detail or ""):
+			# A legacy export: the question was stored with its markers converted.
+			question_name = frappe.db.get_value(
+				"LMS Question", {"question": convert_markers(question_detail, [])["text"]}, "name"
+			)
 		if question_name:
 			marks = question.get("marks")
 			if marks is None:

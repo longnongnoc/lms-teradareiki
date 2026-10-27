@@ -11,7 +11,7 @@ import {
 
 vi.mock('frappe-ui', () => ({ createResource: vi.fn() }))
 
-const body = '<p>{{1}} is the heart, {{2}} the loop</p>'
+const body = '<p>[[1]] is the heart, [[2]] the loop</p>'
 const blanks = [
 	{ blank_id: '1', answers: '圧縮機', marks: 1 },
 	{ blank_id: '2', answers: 'ループ\nloop', marks: 2 },
@@ -90,7 +90,7 @@ describe('isQuestionValid for fill_blank', () => {
 			isQuestionValid({ question: body, blanks: [blanks[0]] }, 'fill_blank')
 		).toBe(false)
 		expect(
-			isQuestionValid({ question: '<p>{{1}}</p>', blanks }, 'fill_blank')
+			isQuestionValid({ question: '<p>[[1]]</p>', blanks }, 'fill_blank')
 		).toBe(false)
 	})
 })
