@@ -34,11 +34,6 @@
 					<div class="text-base text-ink-gray-7 mt-1">
 						{{ profile.data.headline }}
 					</div>
-					<ProfileSocialLinks
-						:twitter="profile.data.twitter"
-						:linkedin="profile.data.linkedin"
-						:github="profile.data.github"
-					/>
 				</div>
 				<Button
 					v-if="isSessionUser() && !readOnlyMode"
@@ -89,7 +84,6 @@ import NoPermission from '@/components/NoPermission.vue'
 import NotFound from '@/pages/NotFound.vue'
 import ProfileAvatar from '@/components/Profile/ProfileAvatar.vue'
 import ProfileCover from '@/components/Profile/ProfileCover.vue'
-import ProfileSocialLinks from '@/components/Profile/ProfileSocialLinks.vue'
 import { openFormRoute } from '@/composables/useFormRoute'
 
 const { user, brand } = sessionStore()

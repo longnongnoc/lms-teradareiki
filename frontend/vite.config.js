@@ -34,6 +34,31 @@ function assertFrameworkUiLinked(frontend) {
 	)
 }
 
+// frappe-ui's insert-table picker caps the grid at 6 rows by 8 columns in
+// constants it does not expose. Raised to 10 x 10 here rather than forking the
+// package. Throws if an upgrade renames them, so the cap cannot silently return.
+// ponytail: source rewrite of a pinned dep, drop once frappe-ui takes a prop.
+function tableSizePicker10x10() {
+	return {
+		name: 'lms-table-size-picker-10x10',
+		enforce: 'pre',
+		transform(code, id) {
+			if (!id.endsWith('table-size-picker/TableSizePicker.vue')) return
+			const out = code
+				.replace('const MAX_COLS = 8', 'const MAX_COLS = 10')
+				.replace('const MAX_ROWS = 6', 'const MAX_ROWS = 10')
+			if (
+				!out.includes('MAX_COLS = 10') ||
+				!out.includes('MAX_ROWS = 10')
+			)
+				throw new Error(
+					'TableSizePicker.vue changed upstream: update tableSizePicker10x10'
+				)
+			return out
+		},
+	}
+}
+
 export default defineConfig(async ({ mode }) => {
 	assertFrameworkUiLinked(__dirname)
 	const frappeui = await importFrappeUIPlugin()
@@ -51,6 +76,7 @@ export default defineConfig(async ({ mode }) => {
 					indexHtmlPath: '../lms/www/_lms.html',
 				},
 			}),
+			tableSizePicker10x10(),
 			vue(),
 			VitePWA({
 				registerType: 'autoUpdate',

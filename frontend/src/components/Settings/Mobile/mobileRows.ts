@@ -221,6 +221,12 @@ export const buildYouRows = (options: {
 
 	settingsRows.push(colourModeRow(themePreference))
 	settingsRows.push({
+		key: 'Change Password',
+		label: 'Change Password',
+		icon: 'lucide-key-round',
+		href: '/update-password',
+	})
+	settingsRows.push({
 		key: 'Log out',
 		label: 'Log out',
 		icon: 'lucide-log-out',

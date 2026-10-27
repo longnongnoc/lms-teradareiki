@@ -143,7 +143,7 @@ describe('the profile edit route', () => {
 			configurable: true,
 		})
 		// get_profile_details is a bare frappe.db.get_value, so a field the user
-		// never filled in arrives as null, not ''. `headline: ''` is the third
+		// never filled in arrives as null, not ''. `open_to: ''` is the third
 		// case: what a field holds after one save through this form.
 		profileResource.data = {
 			name: 'john@example.com',
@@ -151,13 +151,10 @@ describe('the profile edit route', () => {
 			first_name: 'John',
 			last_name: 'Doe',
 			user_image: '/files/john.png',
-			headline: '',
+			headline: null,
 			bio: null,
 			language: 'en',
 			open_to: '',
-			linkedin: null,
-			github: null,
-			twitter: null,
 		}
 		profileResource.reload.mockClear()
 		createResourceMock.mockClear()
@@ -301,7 +298,7 @@ describe('the profile edit route', () => {
 
 		expect(valueOf('First Name')).toBe('John')
 		expect(valueOf('Last Name')).toBe('Doe')
-		expect(valueOf('LinkedIn ID')).toBe('')
+		expect(valueOf('Headline')).toBe('')
 		expect(wrapper.text()).not.toContain('Not Saved')
 	})
 
@@ -355,11 +352,11 @@ describe('the profile edit route', () => {
 		const wrapper = mountForm(router, USERNAME)
 		await flushPromises()
 
-		const linkedin = wrapper.find('input[data-label="LinkedIn ID"]')
-		await linkedin.setValue('a')
+		const headline = wrapper.find('input[data-label="Headline"]')
+		await headline.setValue('a')
 		expect(wrapper.text()).toContain('Not Saved')
 
-		await linkedin.setValue('')
+		await headline.setValue('')
 		await flushPromises()
 		expect(wrapper.text()).not.toContain('Not Saved')
 	})

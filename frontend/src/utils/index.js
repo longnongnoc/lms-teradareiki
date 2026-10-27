@@ -963,28 +963,53 @@ const getRootNode = (selector = '#editor') => {
 
 // A saved highlight belongs to the lesson's own text, so text inside an inline
 // quiz, assignment or exercise is never a match.
-const createTextWalker = (root, phrase) => {
-	return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+const lessonTextNodes = (root) => {
+	const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
 		acceptNode(node) {
-			if (node.parentElement?.closest(ASSESSMENT_BLOCK_SELECTOR))
-				return NodeFilter.FILTER_SKIP
-			return node.nodeValue.toLowerCase().includes(phrase.toLowerCase())
-				? NodeFilter.FILTER_ACCEPT
-				: NodeFilter.FILTER_SKIP
+			return node.parentElement?.closest(ASSESSMENT_BLOCK_SELECTOR)
+				? NodeFilter.FILTER_SKIP
+				: NodeFilter.FILTER_ACCEPT
 		},
 	})
+	const nodes = []
+	while (walker.nextNode()) nodes.push(walker.currentNode)
+	return nodes
 }
 
-const findMatchingTextNode = (walker, phrase) => {
-	const node = walker.nextNode()
-	if (!node) return null
+// A selection over several lines or paragraphs spans several text nodes, and
+// Selection.toString() puts newlines between blocks that no text node holds.
+// So the lesson text and the phrase are compared with all whitespace dropped,
+// and the match comes back as one [node, start, end] slice per text node.
+const findMatchingSlices = (root, phrase) => {
+	const chars = []
+	let text = ''
+	for (const node of lessonTextNodes(root)) {
+		const value = node.nodeValue
+		for (let i = 0; i < value.length; i++) {
+			if (/\s/.test(value[i])) continue
+			text += value[i]
+			chars.push({ node, offset: i })
+		}
+	}
 
-	const startIndex = node.nodeValue
-		.toLowerCase()
-		.indexOf(phrase.toLowerCase())
-	const endIndex = startIndex + phrase.length
+	const needle = phrase.replace(/\s+/g, '').toLowerCase()
+	if (!needle) return []
+	const start = text.toLowerCase().indexOf(needle)
+	if (start === -1) return []
 
-	return { node, startIndex, endIndex }
+	const slices = []
+	for (const { node, offset } of chars.slice(start, start + needle.length)) {
+		const last = slices[slices.length - 1]
+		if (last?.node === node) last.endIndex = offset + 1
+		else slices.push({ node, startIndex: offset, endIndex: offset + 1 })
+	}
+	// Between slices there is only whitespace, so take it in too rather than
+	// leaving unhighlighted gaps between words.
+	slices.forEach((slice, i) => {
+		if (i > 0) slice.startIndex = 0
+		if (i < slices.length - 1) slice.endIndex = slice.node.nodeValue.length
+	})
+	return slices
 }
 
 const createHighlightSpan = (color, name, scrollIntoView) => {
@@ -1022,17 +1047,29 @@ export const highlightText = (note, scrollIntoView = false) => {
 	const root = getRootNode()
 	if (!root) return
 
+	// Saving a highlight draws it and then reloads the notes, which draws every
+	// note again; without this the same spans nest inside each other.
+	const drawn = root.querySelectorAll('.highlighted-text')
+	if (
+		note.name &&
+		Array.from(drawn).some((el) => el.dataset.name === note.name)
+	)
+		return
+
 	const phrase = note.highlighted_text
 	const color = note.color.toLowerCase()
 
-	const walker = createTextWalker(root, phrase)
-	const match = findMatchingTextNode(walker, phrase)
-	if (!match) return
+	const slices = findMatchingSlices(root, phrase)
+	if (!slices.length) return
 
-	wrapRangeInHighlight(match, color, note.name, scrollIntoView)
+	// Every slice was measured before any wrapping, and wrapping one text node
+	// leaves the others untouched, so their offsets stay valid.
+	for (const slice of slices) {
+		wrapRangeInHighlight(slice, color, note.name, scrollIntoView)
+	}
 
 	if (scrollIntoView) {
-		match.node.parentElement.scrollIntoView({
+		slices[0].node.parentElement.scrollIntoView({
 			behavior: 'smooth',
 			block: 'center',
 		})
