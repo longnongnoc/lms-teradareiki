@@ -607,10 +607,10 @@
 					</p>
 					<template v-else>
 						<div class="space-y-2">
-							<!-- The overall result, practical score included: while that is
-							     still to come the summary below says so, and no verdict shows. -->
+							<!-- With a practical score this is the overall result: while that
+							     is still to come the summary below says so, and no verdict shows. -->
 							<Badge
-								v-if="resultStatus === 'Pass' || resultStatus === 'Fail'"
+								v-if="verdict"
 								data-testid="quiz-verdict"
 								size="md"
 								:theme="passed ? 'green' : 'red'"
@@ -1873,7 +1873,24 @@ watch(
 	}
 )
 
-const passed = computed(() => resultStatus.value === 'Pass')
+// With a practical score the verdict is the overall result, so none shows while
+// that score is still to come. Without one it is this attempt's own result,
+// so a later failing attempt reads Failed even when the counting one passed.
+const verdict = computed<'Pass' | 'Fail' | null>(() => {
+	if (Number(quiz.data?.practical_max_marks) > 0) {
+		const status = resultStatus.value
+		return status === 'Pass' || status === 'Fail' ? status : null
+	}
+	const result = quizSubmission.data
+	if (!result) return null
+	const pass =
+		typeof result.pass === 'boolean'
+			? result.pass
+			: result.percentage >= (quiz.data?.passing_percentage ?? 0)
+	return pass ? 'Pass' : 'Fail'
+})
+
+const passed = computed(() => verdict.value === 'Pass')
 
 // Every question of the submission just made, with the learner's answer and
 // marks. The server adds the correct answer only when the quiz shows answers.

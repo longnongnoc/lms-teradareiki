@@ -570,10 +570,10 @@ describe('Quiz.vue result', () => {
 
 	// submit_quiz's own flag knows nothing of the practical score, so a passing
 	// test score used to say Passed above "Waiting for practical score".
-	it('takes the verdict from the result summary, not from submit_quiz', async () => {
+	it('takes the verdict from the result summary when the quiz has a practical score', async () => {
 		callMock.mockResolvedValue({ status: 'Fail' })
 		const wrapper = await finish(
-			{ enable_proctoring: 0 },
+			{ enable_proctoring: 0, practical_max_marks: 10 },
 			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
 		)
 		;(wrapper.vm as any).submitQuiz()
@@ -586,7 +586,7 @@ describe('Quiz.vue result', () => {
 	it('shows no verdict while the practical score is still to come', async () => {
 		callMock.mockResolvedValue({ status: 'Pending Practical' })
 		const wrapper = await finish(
-			{ enable_proctoring: 0 },
+			{ enable_proctoring: 0, practical_max_marks: 10 },
 			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
 		)
 		;(wrapper.vm as any).submitQuiz()
@@ -598,16 +598,28 @@ describe('Quiz.vue result', () => {
 		wrapper.unmount()
 	})
 
-	it('shows no verdict when the result summary cannot be loaded', async () => {
+	it('shows no verdict with a practical score when the summary cannot be loaded', async () => {
 		callMock.mockRejectedValue(new Error('offline'))
 		const wrapper = await finish(
-			{ enable_proctoring: 0 },
+			{ enable_proctoring: 0, practical_max_marks: 10 },
 			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
 		)
 		;(wrapper.vm as any).submitQuiz()
 		await runDeferredSubmit()
 
 		expect(wrapper.find('[data-testid="quiz-verdict"]').exists()).toBe(false)
+		wrapper.unmount()
+	})
+
+	// Without a practical score the verdict is this attempt's own, so a failing
+	// retake does not read Passed because an earlier attempt counts.
+	it('takes the verdict from this attempt when the quiz has no practical score', async () => {
+		callMock.mockResolvedValue({ status: 'Pass' })
+		const wrapper = await finish({ enable_proctoring: 0 })
+		;(wrapper.vm as any).submitQuiz()
+		await runDeferredSubmit()
+
+		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Failed')
 		wrapper.unmount()
 	})
 
