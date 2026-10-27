@@ -97,6 +97,24 @@
 					</template>
 					{{ __('Student View') }}
 				</Button>
+				<Badge v-if="courseEditorRef?.isDirty" theme="amber">
+					{{ __('Not Saved') }}
+				</Badge>
+				<Tooltip
+					v-if="!courseEditorRef?.isDirty"
+					:text="__('No changes to save')"
+					:hoverDelay="100"
+				>
+					<HeaderButton :label="__('Save')" variant="solid" disabled />
+				</Tooltip>
+				<ShortcutTooltip v-else :label="__('Save')" combo="Mod+S">
+					<HeaderButton
+						:label="__('Save')"
+						variant="solid"
+						:loading="courseEditorRef?.isSaving"
+						@click="courseEditorRef?.saveSelectedLesson()"
+					/>
+				</ShortcutTooltip>
 			</template>
 			<Button
 				v-if="tab?.key === 'dashboard' && course.data && isMobile"
@@ -295,6 +313,7 @@ const courseFormRef = computed<CourseFormApi | null>(
 type CourseEditorApi = {
 	saveSelectedLesson: () => void
 	isDirty: ComputedRef<boolean>
+	isSaving: ComputedRef<boolean>
 	lessonHasVideo: ComputedRef<boolean>
 	openVideoStats: () => void
 	openAddChapter: () => void

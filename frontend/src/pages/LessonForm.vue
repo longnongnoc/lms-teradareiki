@@ -16,7 +16,7 @@
 					<Switch
 						v-model="lesson.include_in_preview"
 						:aria-labelledby="previewLabelId"
-						@update:modelValue="markDirty"
+						@update:modelValue="markFieldDirty"
 					/>
 					<div class="flex items-center gap-1.5">
 						<span
@@ -62,7 +62,7 @@
 							v-model="lesson.include_in_preview"
 							:aria-labelledby="previewSheetLabelId"
 							class="shrink-0"
-							@update:modelValue="markDirty"
+							@update:modelValue="markFieldDirty"
 						/>
 					</div>
 				</div>
@@ -112,6 +112,7 @@
 					class="instructor-notes-editor border-t border-outline-gray-2 py-3"
 					:uploadContext="instructorUploadContext"
 					@change="markDirty"
+					@input="markTyped"
 				/>
 			</details>
 
@@ -119,6 +120,7 @@
 				ref="editor"
 				:uploadContext="contentUploadContext"
 				@change="markDirty"
+				@input="markTyped"
 			/>
 		</div>
 	</div>
@@ -145,6 +147,7 @@ import {
 	nextTick,
 	onBeforeUnmount,
 	useId,
+	watch,
 } from 'vue'
 import { ChevronRight, NotebookPen } from 'lucide-vue-next'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
@@ -240,7 +243,7 @@ const { updateOnboardingStep } = useOnboarding('learning')
 
 const emit = defineEmits(['saved', 'created'])
 
-// True after initial render, so render()'s onChange doesn't autosave.
+// True after initial render, so render()'s onChange doesn't mark the lesson dirty.
 let initialLoadComplete = false
 
 // An unreadable field renders as empty, which looks exactly like a lesson with
@@ -309,27 +312,131 @@ function markDeleted() {
 	lessonDeleted = true
 }
 
-const autoSave = useDebounceFn(() => {
-	if (lessonDeleted) return
-	if (isDirty.value && lessonDetails.data?.lesson) saveLesson()
-}, 800)
-
+// Edits only mark the lesson dirty; the header's Save button (or Ctrl+S) writes
+// them, and so does the 5-minute autosave below. The unmount flush still saves
+// when the author moves to another lesson.
 function markDirty({ fromTitle = false } = {}) {
 	if (lessonDeleted) return
 	if (isDraft.value) return markDraftDirty(fromTitle)
 	if (!lessonDetails.data?.lesson) return
-	// render() fires onChange; gate non-title saves until loaded.
-	if (!fromTitle && !initialLoadComplete) return
-	isDirty.value = true
-	// Capture block data now so a later flush persists latest, not stale.
-	if (!fromTitle) captureEditors()
-	autoSave()
+	if (fromTitle) return markFieldEdited()
+	// render() fires onChange; gate editor edits until loaded.
+	if (!initialLoadComplete) return
+	checkEditors()
 }
+
+// A keystroke in an editor is an edit for certain, and the DOM reports it at
+// once, while EditorJS's change event and the block comparison take about half
+// a second. Without this, Save stays disabled for that long after typing.
+function markTyped() {
+	if (lessonDeleted || !initialLoadComplete) return
+	if (!isDraft.value && !lessonDetails.data?.lesson) return
+	isDirty.value = true
+}
+
+// The preview switch is a plain field: every toggle is an edit.
+function markFieldDirty() {
+	if (lessonDeleted || !initialLoadComplete) return
+	if (!isDraft.value && !lessonDetails.data?.lesson) return
+	markFieldEdited()
+}
+
+// Counts title and preview edits, so a save can tell whether one landed while
+// it was in flight.
+let fieldEdits = 0
+function markFieldEdited() {
+	fieldEdits += 1
+	isDirty.value = true
+}
+
+// What the editors held when the lesson loaded or was last saved. EditorJS also
+// reports changes that edit nothing (the markdown block toggles its placeholder
+// on focus and blur, so clicking Save fires one), and an editor change marks
+// the lesson dirty only when its blocks differ from this.
+let savedEditors = ''
+let snapshotReady = Promise.resolve()
+const editorsKey = (bodyData, notesData) =>
+	JSON.stringify([keptBlocks(bodyData), keptBlocks(notesData)])
+
+function snapshotEditors() {
+	snapshotReady = Promise.all([
+		serialise(editor.value),
+		serialise(instructorEditor.value),
+	]).then(([bodyData, notesData]) => {
+		savedEditors = editorsKey(bodyData, notesData)
+	})
+}
+
+// Editor changes whose comparison has not resolved yet. Until it does, a lesson
+// switch or a tab close must treat the lesson as possibly edited.
+let pendingChecks = 0
+
+// Capture block data now so a later flush persists latest, not stale.
+function checkEditors() {
+	pendingChecks += 1
+	return captureEditors()
+		.then((changed) => {
+			if (changed) isDirty.value = true
+		})
+		.finally(() => {
+			pendingChecks -= 1
+		})
+}
+
+// A draft with a title is about to be created; closing the tab now drops it.
+const hasUnsavedWork = () =>
+	isDirty.value ||
+	pendingChecks > 0 ||
+	(isDraft.value && lesson.title.trim() !== '')
+
+// While the lesson stays unsaved it also saves itself every 5 minutes, so a
+// forgotten Save loses at most that much. Not a debounce: steady typing would
+// keep pushing it back.
+const AUTOSAVE_INTERVAL = 5 * 60 * 1000
+let autosaveTimer = null
+
+function armAutosave() {
+	clearTimeout(autosaveTimer)
+	autosaveTimer = setTimeout(() => {
+		autosaveTimer = null
+		if (!isDirty.value || lessonDeleted || isUnmounting) return
+		// Without a title the save can only fail with "Title is required";
+		// leave that to the Save button rather than repeat it every round.
+		if (lesson.title.trim()) saveLesson()
+		// A failed save leaves the lesson dirty; try again next round.
+		armAutosave()
+	}, AUTOSAVE_INTERVAL)
+}
+
+watch(isDirty, (dirty) => {
+	if (dirty) {
+		if (!autosaveTimer) armAutosave()
+		return
+	}
+	clearTimeout(autosaveTimer)
+	autosaveTimer = null
+})
+
+// Closing or reloading the tab runs no unmount flush, so ask first.
+useEventListener(window, 'beforeunload', (event) => {
+	if (!hasUnsavedWork() || lessonDeleted) return
+	event.preventDefault()
+	event.returnValue = ''
+})
+
+const isSaving = computed(
+	() =>
+		editLesson.loading ||
+		newLessonResource.loading ||
+		lessonReference.loading ||
+		createLessonResource.loading
+)
 
 defineExpose({
 	saveLesson,
 	markDeleted,
 	isDirty,
+	isSaving,
 	lessonHasVideo: () => lessonHasVideo.value,
 	lessonName: () => lessonDetails.data?.lesson?.name,
 	lessonTitle: () => lesson.title,
@@ -354,6 +461,7 @@ function openDraft() {
 		instructorEditor.value?.isReady(),
 	]).then(() => {
 		initialLoadComplete = true
+		snapshotEditors()
 		if (!formRef.value?.contains(document.activeElement)) {
 			titleRef.value?.focus()
 		}
@@ -365,8 +473,7 @@ function openDraft() {
 function markDraftDirty(fromTitle) {
 	if (fromTitle) return createDraftAfterIdle()
 	if (!initialLoadComplete) return
-	isDirty.value = true
-	captureEditors()
+	checkEditors()
 }
 
 const createLessonResource = createResource({
@@ -402,7 +509,7 @@ function createDraftLesson({ flush = false } = {}) {
 }
 
 // The form stays mounted, so the title keeps its focus and caret. From here on
-// it is an ordinary lesson and saves through the 800 ms autosave.
+// it is an ordinary lesson, saved by the Save button or the 5-minute autosave.
 function promoteDraft(name) {
 	isDraft.value = false
 	lessonDetails.data = {
@@ -413,10 +520,8 @@ function promoteDraft(name) {
 	instructorUploadContext.docname = name
 	emit('created', { name, chapter: draftChapter })
 	// Typed while the create was in flight.
-	if (lesson.title.trim() !== createdTitle) isDirty.value = true
-	if (!isDirty.value) return
-	if (isUnmounting) saveLesson({ flush: true })
-	else autoSave()
+	if (lesson.title.trim() !== createdTitle) markFieldEdited()
+	if (isDirty.value && isUnmounting) saveLesson({ flush: true })
 }
 
 // ignoreTyping:false enables Ctrl+S in title; guard spares ProseMirror.
@@ -467,9 +572,10 @@ const lessonDetails = createResource({
 			Promise.all([addLessonContent(data), addInstructorNotes(data)]).then(
 				() => {
 					nextTick(() => {
-						// Loaded content isn't user input; arm autosave after render.
+						// Loaded content isn't user input; track edits after render.
 						isDirty.value = false
 						initialLoadComplete = true
+						snapshotEditors()
 						// An empty lesson focuses the title so it can be named (and so
 						// the block editor doesn't grab the caret out from under the
 						// title). Lessons with a body focus the body for editing.
@@ -525,6 +631,7 @@ const addInstructorNotes = (data) => {
 
 onBeforeUnmount(() => {
 	isUnmounting = true
+	clearTimeout(autosaveTimer)
 	// Flush unsaved edits before teardown; skip if deleted.
 	if (lessonDeleted) return
 	if (isDraft.value) {
@@ -533,7 +640,10 @@ onBeforeUnmount(() => {
 		createDraftLesson({ flush: true })
 		return
 	}
-	if (isDirty.value && lessonDetails.data?.lesson) saveLesson({ flush: true })
+	if (!lessonDetails.data?.lesson) return
+	if (isDirty.value) saveLesson({ flush: true })
+	// An editor change still being compared: write only if the blocks differ.
+	else if (pendingChecks > 0) saveLesson({ flush: true, onlyIfChanged: true })
 })
 
 const newLessonResource = createResource({
@@ -608,16 +718,21 @@ const foldEditorData = (bodyData, notesData) => {
 }
 
 // Serialise live editors into lesson on @change, before any teardown race.
+// Resolves to whether the blocks differ from the last load or save.
 const captureEditors = async () => {
-	if (lessonDeleted) return
+	if (lessonDeleted) return false
 	const [bodyData, notesData] = await Promise.all([
 		serialise(editor.value),
 		serialise(instructorEditor.value),
 	])
+	// Compare against the load snapshot, not the '' it starts from.
+	await snapshotReady
+	const changed = editorsKey(bodyData, notesData) !== savedEditors
 	foldEditorData(bodyData, notesData)
+	return changed
 }
 
-function saveLesson({ flush = false } = {}) {
+function saveLesson({ flush = false, onlyIfChanged = false } = {}) {
 	if (isDraft.value) return createDraftLesson({ flush })
 	// foldEditorData skips unreadable fields, so `lesson` still holds their stored
 	// strings and the write puts them back unchanged rather than blanking them.
@@ -628,10 +743,14 @@ function saveLesson({ flush = false } = {}) {
 	Promise.all([
 		serialise(editor.value),
 		serialise(instructorEditor.value),
-	]).then(([bodyData, notesData]) => persistLesson(bodyData, notesData, flush))
+	]).then(([bodyData, notesData]) =>
+		persistLesson(bodyData, notesData, flush, onlyIfChanged)
+	)
 }
 
-function persistLesson(bodyData, notesData, flush) {
+function persistLesson(bodyData, notesData, flush, onlyIfChanged) {
+	const sentEditors = editorsKey(bodyData, notesData)
+	if (onlyIfChanged && sentEditors === savedEditors) return
 	const bodyHasContent = foldEditorData(bodyData, notesData)
 
 	// Nothing to save: no title, no body.
@@ -641,17 +760,19 @@ function persistLesson(bodyData, notesData, flush) {
 	if (isUnmounting && !flush) return
 	if (lessonDeleted) return
 	if (lessonDetails.data?.lesson) {
-		editCurrentLesson()
+		editCurrentLesson(sentEditors)
 	} else {
 		createNewLesson()
 	}
 }
 
-const removeEmptyBlocks = (outputData) => {
-	let blocks = outputData.blocks.filter((block) => {
+const keptBlocks = (outputData) =>
+	outputData?.blocks?.filter((block) => {
 		return Object.keys(block.data).length > 0 || block.type == 'paragraph'
-	})
-	outputData.blocks = blocks
+	}) ?? null
+
+const removeEmptyBlocks = (outputData) => {
+	outputData.blocks = keptBlocks(outputData)
 	return outputData
 }
 
@@ -714,7 +835,26 @@ const linkLesson = (lessonName) =>
 		}
 	)
 
-const editCurrentLesson = (isRetry = false) => {
+// Numbers each write, so an older response landing after a newer one (the
+// autosave and a Save click overlapping) cannot mark the lesson saved.
+let saveSeq = 0
+
+// Edits can land while a write is in flight (the autosave fires mid-typing), so
+// a success clears the dirty flag only if nothing changed since it was sent.
+function settleAfterSave(seq, sentFieldEdits) {
+	if (fieldEdits !== sentFieldEdits) return
+	Promise.all([
+		serialise(editor.value),
+		serialise(instructorEditor.value),
+	]).then(([bodyData, notesData]) => {
+		if (seq !== saveSeq || fieldEdits !== sentFieldEdits) return
+		if (editorsKey(bodyData, notesData) === savedEditors) isDirty.value = false
+	})
+}
+
+const editCurrentLesson = (sentEditors, isRetry = false) => {
+	const seq = ++saveSeq
+	const sentFieldEdits = fieldEdits
 	// Catch the re-thrown rejection: a save racing a delete 404s harmlessly.
 	editLesson
 		.submit(
@@ -726,7 +866,9 @@ const editCurrentLesson = (isRetry = false) => {
 					return validateLesson()
 				},
 				onSuccess() {
-					isDirty.value = false
+					if (seq !== saveSeq) return
+					savedEditors = sentEditors
+					settleAfterSave(seq, sentFieldEdits)
 					emit('saved', {
 						name: lessonDetails.data.lesson.name,
 						title: lesson.title,
@@ -743,7 +885,7 @@ const editCurrentLesson = (isRetry = false) => {
 			// drop the unsaved edits we're saving).
 			if (!isRetry && err?.exc_type === 'DoesNotExistError') {
 				resolveLessonName().then((name) => {
-					if (name) editCurrentLesson(true)
+					if (name) editCurrentLesson(sentEditors, true)
 					else toast.error(err.messages?.[0] || err.message || err)
 				})
 				return

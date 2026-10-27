@@ -484,3 +484,302 @@ describe('LessonForm with unreadable stored content', () => {
 		)
 	})
 })
+
+// EditorJS reports changes that edit nothing: the markdown block toggles its
+// placeholder on focus and blur, so clicking Save fires one. Without autosave a
+// false change would leave "Not Saved" up after a successful save.
+describe('LessonForm dirty state follows the blocks, not every editor change', () => {
+	let wrapper: VueWrapper
+
+	beforeEach(() => {
+		created.list.length = 0
+		editorState.saveData = { content: paragraph('Body text') }
+		editorState.holdInstructorReady = false
+		editorState.rejectBodySave = false
+		editorState.rejectNotesSave = false
+	})
+
+	afterEach(() => {
+		try {
+			wrapper?.unmount()
+		} catch {
+			// already unmounted by the test
+		}
+		document.body.innerHTML = ''
+	})
+
+	it('stays clean when an editor change leaves the blocks as loaded', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+
+		await editEditor(wrapper, 'content')
+
+		expect((wrapper.vm as any).isDirty).toBe(false)
+	})
+
+	it('is cleared by Save and not re-set by a no-op change after it', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		editorState.saveData.content = paragraph('Edited body')
+		await editEditor(wrapper, 'content')
+		expect((wrapper.vm as any).isDirty).toBe(true)
+		const editLesson = findResource('frappe.client.set_value')
+		expect(editLesson.submit).not.toHaveBeenCalled()
+
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+		expect(editLesson.submit).toHaveBeenCalledTimes(1)
+		editLesson.lastHandlers.onSuccess()
+		await flushPromises()
+		expect((wrapper.vm as any).isDirty).toBe(false)
+
+		// The blur from clicking Save lands after the save.
+		await editEditor(wrapper, 'content')
+		expect((wrapper.vm as any).isDirty).toBe(false)
+	})
+})
+
+// Save is the main way to write, with a slow autosave behind it: once every
+// 5 minutes while the lesson is unsaved, not 800 ms after each keystroke.
+describe('LessonForm 5-minute autosave', () => {
+	let wrapper: VueWrapper
+	const FIVE_MINUTES = 5 * 60 * 1000
+
+	beforeEach(() => {
+		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+		created.list.length = 0
+		editorState.saveData = { content: paragraph('Body text') }
+		editorState.holdInstructorReady = false
+		editorState.rejectBodySave = false
+		editorState.rejectNotesSave = false
+	})
+
+	afterEach(() => {
+		try {
+			wrapper?.unmount()
+		} catch {
+			// already unmounted by the test
+		}
+		document.body.innerHTML = ''
+		vi.useRealTimers()
+	})
+
+	async function idle(ms: number) {
+		vi.advanceTimersByTime(ms)
+		await flushPromises()
+	}
+
+	it('saves an unsaved lesson once 5 minutes pass, and not before', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		editorState.saveData.content = paragraph('Edited body')
+		await editEditor(wrapper, 'content')
+		const editLesson = findResource('frappe.client.set_value')
+
+		await idle(FIVE_MINUTES - 1)
+		expect(editLesson.submit).not.toHaveBeenCalled()
+
+		await idle(1)
+		expect(editLesson.submit).toHaveBeenCalledTimes(1)
+		expect(editLesson.lastParams.fieldname.content).toContain('Edited body')
+	})
+
+	it('keeps its 5-minute pace while the author keeps typing', async () => {
+		wrapper = await mountLoaded()
+		await editTitle(wrapper, 'One')
+		await idle(4 * 60 * 1000)
+		await editTitle(wrapper, 'Two')
+		await idle(60 * 1000)
+
+		expect(findResource('frappe.client.set_value').submit).toHaveBeenCalledTimes(1)
+	})
+
+	it('does nothing once the lesson is saved', async () => {
+		wrapper = await mountLoaded()
+		await editTitle(wrapper, 'Edited title')
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+		const editLesson = findResource('frappe.client.set_value')
+		editLesson.lastHandlers.onSuccess()
+		await flushPromises()
+
+		await idle(2 * FIVE_MINUTES)
+		expect(editLesson.submit).toHaveBeenCalledTimes(1)
+	})
+
+	it('tries again 5 minutes later when the save left it unsaved', async () => {
+		wrapper = await mountLoaded()
+		await editTitle(wrapper, 'Edited title')
+		const editLesson = findResource('frappe.client.set_value')
+
+		await idle(FIVE_MINUTES)
+		expect(editLesson.submit).toHaveBeenCalledTimes(1)
+		await idle(FIVE_MINUTES)
+		expect(editLesson.submit).toHaveBeenCalledTimes(2)
+	})
+})
+
+// Edits keep landing while a write is in flight, mostly because the autosave
+// fires mid-typing. A success must not mark them saved.
+describe('LessonForm edits made while a save is in flight', () => {
+	let wrapper: VueWrapper
+
+	beforeEach(() => {
+		created.list.length = 0
+		editorState.saveData = { content: paragraph('Body text') }
+		editorState.holdInstructorReady = false
+		editorState.rejectBodySave = false
+		editorState.rejectNotesSave = false
+	})
+
+	afterEach(() => {
+		try {
+			wrapper?.unmount()
+		} catch {
+			// already unmounted by the test
+		}
+		document.body.innerHTML = ''
+	})
+
+	const isDirty = () => (wrapper.vm as any).isDirty
+
+	it('stays dirty after a title edit typed during the save', async () => {
+		wrapper = await mountLoaded()
+		await editTitle(wrapper, 'First')
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+		const editLesson = findResource('frappe.client.set_value')
+
+		await editTitle(wrapper, 'First and more')
+		editLesson.lastHandlers.onSuccess()
+		await flushPromises()
+
+		expect(isDirty()).toBe(true)
+	})
+
+	it('stays dirty after a body edit typed during the save', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		editorState.saveData.content = paragraph('Sent body')
+		await editEditor(wrapper, 'content')
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+		const editLesson = findResource('frappe.client.set_value')
+
+		editorState.saveData.content = paragraph('Typed during the save')
+		editLesson.lastHandlers.onSuccess()
+		await flushPromises()
+
+		expect(isDirty()).toBe(true)
+	})
+
+	it('ignores an older save that succeeds after a newer one was sent', async () => {
+		wrapper = await mountLoaded()
+		await editTitle(wrapper, 'One')
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+		const editLesson = findResource('frappe.client.set_value')
+		const olderSave = editLesson.lastHandlers
+
+		await editTitle(wrapper, 'Two')
+		;(wrapper.vm as any).saveLesson()
+		await flushPromises()
+
+		olderSave.onSuccess()
+		await flushPromises()
+		expect(isDirty()).toBe(true)
+	})
+
+	it('flushes a body edit whose dirty check has not resolved at unmount', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		editorState.saveData.content = paragraph('Edited just before leaving')
+		const body = wrapper
+			.findAllComponents(BlockEditorStub)
+			.find((c) => (c.props('uploadContext') as any)?.fieldname === 'content')
+		// The change event fires and the author leaves before it is compared.
+		body!.vm.$emit('change')
+		wrapper.unmount()
+		await flushPromises()
+
+		const editLesson = findResource('frappe.client.set_value')
+		expect(editLesson.submit).toHaveBeenCalledTimes(1)
+		expect(editLesson.lastParams.fieldname.content).toContain(
+			'Edited just before leaving'
+		)
+	})
+
+	it('does not write on unmount when the pending change edits nothing', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		await flushPromises()
+		const body = wrapper
+			.findAllComponents(BlockEditorStub)
+			.find((c) => (c.props('uploadContext') as any)?.fieldname === 'content')
+		// Clicking the outline blurs the editor, which fires a no-op change.
+		body!.vm.$emit('change')
+		wrapper.unmount()
+		await flushPromises()
+
+		expect(findResource('frappe.client.set_value').submit).not.toHaveBeenCalled()
+	})
+
+	it('asks before closing the tab while a change is still being compared', async () => {
+		wrapper = await mountLoaded({
+			content: JSON.stringify(paragraph('Body text')),
+		})
+		editorState.saveData.content = paragraph('Edited')
+		const body = wrapper
+			.findAllComponents(BlockEditorStub)
+			.find((c) => (c.props('uploadContext') as any)?.fieldname === 'content')
+		body!.vm.$emit('change')
+
+		const event = new Event('beforeunload', { cancelable: true })
+		window.dispatchEvent(event)
+		expect(event.defaultPrevented).toBe(true)
+	})
+})
+
+// Typing must enable Save at once. EditorJS's change event and the block
+// comparison take about half a second, and a Save click inside that window hit
+// a disabled button.
+describe('LessonForm marks a keystroke dirty at once', () => {
+	let wrapper: VueWrapper
+
+	beforeEach(() => {
+		created.list.length = 0
+		editorState.saveData = {}
+		editorState.holdInstructorReady = false
+		editorState.rejectBodySave = false
+		editorState.rejectNotesSave = false
+	})
+
+	afterEach(() => {
+		try {
+			wrapper?.unmount()
+		} catch {
+			// already unmounted by the test
+		}
+		document.body.innerHTML = ''
+	})
+
+	it.each(['content', 'instructor_content'])(
+		'sets dirty synchronously on input in the %s editor',
+		async (fieldname) => {
+			wrapper = await mountLoaded()
+			const target = wrapper
+				.findAllComponents(BlockEditorStub)
+				.find((c) => (c.props('uploadContext') as any)?.fieldname === fieldname)
+
+			target!.element.dispatchEvent(new Event('input', { bubbles: true }))
+
+			expect((wrapper.vm as any).isDirty).toBe(true)
+		}
+	)
+})
