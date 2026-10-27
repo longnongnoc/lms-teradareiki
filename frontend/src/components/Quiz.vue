@@ -622,7 +622,10 @@
 					</p>
 					<template v-else>
 						<div class="space-y-2">
+							<!-- With a practical score this is the overall result: while that
+							     is still to come the summary below says so, and no verdict shows. -->
 							<Badge
+								v-if="verdict"
 								data-testid="quiz-verdict"
 								size="md"
 								:theme="passed ? 'green' : 'red'"
@@ -662,6 +665,7 @@
 						v-if="!preview"
 						:quiz="quiz.data.name"
 						:refresh-key="quizSubmission.data.submission"
+						@loaded="resultStatus = $event?.status ?? null"
 					/>
 					<p v-if="endedNote" class="text-p-base text-ink-gray-7">
 						{{ endedNote }}
@@ -713,6 +717,50 @@
 							:html="item.question"
 							:results="item.results"
 						/>
+					</div>
+				</div>
+				<div
+					v-if="answerReviewItems.length"
+					data-testid="answer-review"
+					class="space-y-4 border-t border-outline-gray-1 p-3.5"
+				>
+					<h3 class="text-sm-semibold text-ink-gray-9">
+						{{ __('Your answers') }}
+					</h3>
+					<div
+						v-for="item in answerReviewItems"
+						:key="item.name"
+						data-testid="answer-review-item"
+						class="space-y-1.5"
+					>
+						<div
+							class="flex items-center justify-between gap-3 text-sm text-ink-gray-6"
+						>
+							<span>{{ __('Question {0}').format(item.number) }}</span>
+							<span class="tabular-nums">
+								{{ __('{0} of {1} marks').format(item.marks, item.marksOutOf) }}
+							</span>
+						</div>
+						<div
+							v-safe-html:rich="item.question"
+							class="text-p-base text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
+						/>
+						<p class="text-sm text-ink-gray-7">
+							<span class="me-1.5 text-ink-gray-6">{{
+								__('Your answer:')
+							}}</span>
+							{{ item.answer || '-' }}
+						</p>
+						<p
+							v-if="item.correctAnswer"
+							data-testid="answer-review-correct"
+							class="text-sm text-ink-gray-7"
+						>
+							<span class="me-1.5 text-ink-gray-6">
+								{{ __('Correct answer:') }}
+							</span>
+							{{ item.correctAnswer }}
+						</p>
 					</div>
 				</div>
 				<div
@@ -991,6 +1039,12 @@ import {
 	joinSentences,
 } from '@/utils/quizSummary'
 import { orderQuizQuestions } from '@/utils/quizSections'
+import {
+	SUBMISSION_ANSWERS_METHOD,
+	answerText,
+	correctAnswerText,
+} from '@/utils/submissionAnswers'
+import type { SubmissionAnswers } from '@/utils/submissionAnswers'
 import { safeUrl } from '@/utils/safeUrl'
 import { htmlToText } from '@/utils/inertHtml'
 import {
@@ -1830,11 +1884,76 @@ const fillBlankReviewItems = computed(() => {
 	})
 })
 
-const passed = computed(() => {
+// From get_quiz_result_summary, through QuizResultSummary: unlike submit_quiz's
+// own `pass` it accounts for the practical score. Null until it has loaded.
+const resultStatus = ref<string | null>(null)
+
+watch(
+	() => quizSubmission.data?.submission,
+	() => {
+		resultStatus.value = null
+	}
+)
+
+// With a practical score the verdict is the overall result, so none shows while
+// that score is still to come. Without one it is this attempt's own result,
+// so a later failing attempt reads Failed even when the counting one passed.
+const verdict = computed<'Pass' | 'Fail' | null>(() => {
+	if (Number(quiz.data?.practical_max_marks) > 0) {
+		const status = resultStatus.value
+		return status === 'Pass' || status === 'Fail' ? status : null
+	}
 	const result = quizSubmission.data
-	if (!result) return false
-	if (typeof result.pass === 'boolean') return result.pass
-	return result.percentage >= (quiz.data?.passing_percentage ?? 0)
+	if (!result) return null
+	const pass =
+		typeof result.pass === 'boolean'
+			? result.pass
+			: result.percentage >= (quiz.data?.passing_percentage ?? 0)
+	return pass ? 'Pass' : 'Fail'
+})
+
+const passed = computed(() => verdict.value === 'Pass')
+
+// Every question of the submission just made, with the learner's answer and
+// marks. The server adds the correct answer only when the quiz shows answers.
+const submissionAnswers = createResource<SubmissionAnswers>({
+	url: SUBMISSION_ANSWERS_METHOD,
+	makeParams() {
+		return { submission: quizSubmission.data?.submission }
+	},
+})
+
+watch(
+	() => quizSubmission.data?.submission,
+	(submission) => {
+		// Never show the last attempt's answers while this one's are on the way.
+		submissionAnswers.reset()
+		if (submission && !props.preview) submissionAnswers.fetch()
+	}
+)
+
+// Fill Blank questions are left out: the review above shows them blank by
+// blank, under the same Show Answer Review rule.
+const answerReviewItems = computed(() => {
+	const rows = submissionAnswers.data?.questions
+	if (!rows || !quizSubmission.data || quizSubmission.data.is_open_ended)
+		return []
+	return rows
+		.filter((row) => row.question_type !== 'Fill Blank')
+		.map((row) => {
+			const position = questions.value.findIndex(
+				(question) => question.question === row.question_name
+			)
+			return {
+				name: row.name,
+				number: position + 1 || rows.indexOf(row) + 1,
+				question: row.question,
+				marks: row.marks,
+				marksOutOf: row.marks_out_of,
+				answer: answerText(row),
+				correctAnswer: correctAnswerText(row),
+			}
+		})
 })
 
 const answerCounts = computed(() => {
@@ -2188,6 +2307,7 @@ const resetQuiz = () => {
 	fillBlankGrade.value = null
 	emptyBlanksFlagged.value = false
 	fillBlankReview.reset()
+	submissionAnswers.reset()
 	attemptedQuestions.value = []
 	reviewQuestions.value = []
 	quizSubmission.reset()
@@ -2245,29 +2365,29 @@ const markForReview = (checked: boolean, questionNumber: number): void => {
 const getSubmissionColumns = () => {
 	return [
 		{
-			label: 'No.',
+			label: __('No.'),
 			key: 'idx',
 			width: 1,
 		},
 		{
-			label: 'Date',
+			label: __('Date'),
 			key: 'creation',
 			width: 2,
 		},
 		{
-			label: 'Score',
+			label: __('Score'),
 			key: 'score',
 			align: 'left',
 			width: 1,
 		},
 		{
-			label: 'Score out of',
+			label: __('Score out of'),
 			key: 'score_out_of',
 			align: 'left',
 			width: 1,
 		},
 		{
-			label: 'Percentage',
+			label: __('Percentage'),
 			key: 'percentage',
 			align: 'left',
 			width: 1,

@@ -2,7 +2,7 @@
 	<div
 		ref="host"
 		v-bind="$attrs"
-		class="[&_table]:w-full [&_table]:border-collapse [&_table]:text-base [&_td]:border [&_td]:border-outline-gray-2 [&_td]:p-2 [&_td]:align-middle [&_th]:border [&_th]:border-outline-gray-2 [&_th]:bg-surface-gray-2 [&_th]:p-2 [&_th]:text-left"
+		class="[&_table]:w-full [&_table]:border-collapse [&_table]:text-base [&_td]:border [&_td]:border-outline-gray-2 [&_td]:p-2 [&_td]:align-middle [&_th]:border [&_th]:border-outline-gray-2 [&_th]:bg-surface-gray-2 [&_th]:p-2 [&_th]:text-start"
 		@click="onHostClick"
 		@keydown="onHostKeydown"
 	></div>
