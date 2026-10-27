@@ -51934,3 +51934,7 @@ msgstr "この提出内容を閲覧する権限がありません。"
 #: lms/lms/quiz_results.py
 msgid "submission"
 msgstr "提出"
+
+#: frontend/src/pages/QuizSubmission.vue
+msgid "The answers are not shown for this quiz."
+msgstr "このクイズでは解答は表示されません。"

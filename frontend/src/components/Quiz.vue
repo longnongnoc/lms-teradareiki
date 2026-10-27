@@ -1891,19 +1891,14 @@ watch(
 	}
 )
 
-// A Fill Blank question shown blank by blank in the review above is left out.
+// Fill Blank questions are left out: the review above shows them blank by
+// blank, under the same Show Answer Review rule.
 const answerReviewItems = computed(() => {
 	const rows = submissionAnswers.data?.questions
 	if (!rows || !quizSubmission.data || quizSubmission.data.is_open_ended)
 		return []
 	return rows
-		.filter(
-			(row) =>
-				!(
-					row.question_type === 'Fill Blank' &&
-					fillBlankReview.data?.[row.question_name]
-				)
-		)
+		.filter((row) => row.question_type !== 'Fill Blank')
 		.map((row) => {
 			const position = questions.value.findIndex(
 				(question) => question.question === row.question_name

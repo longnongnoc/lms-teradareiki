@@ -247,7 +247,8 @@ def get_submission_answers(submission: str):
 
 	The member reads their own submission; staff who may review the member on the quiz read
 	anyone's. The correct answer (`correct_answer` on each row) is only sent to staff, or to
-	the member when the quiz has Show Answers on."""
+	the member when the quiz has Show Answers on. A member who does not review the quiz gets
+	no questions when it has Show Answer Review off."""
 	user = frappe.session.user
 	if not user or user == "Guest":
 		frappe.throw(_("Please log in."), frappe.PermissionError)
@@ -257,9 +258,15 @@ def get_submission_answers(submission: str):
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
 
 	staff = _is_staff()
-	if row.member != user and not (staff and _can_review(row.quiz, row.member)):
+	reviewer = staff and _can_review(row.quiz, row.member)
+	if row.member != user and not reviewer:
 		frappe.throw(_("You are not permitted to view this submission."), frappe.PermissionError)
-	reveal = staff or bool(cint(frappe.db.get_value("LMS Quiz", row.quiz, "show_answers")))
+	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
+	reveal = staff or bool(cint(quiz.show_answers))
+	result = {"submission": submission, "quiz": row.quiz, "member": row.member}
+	# As in get_fill_blank_review: with Show Answer Review off the member gets no review.
+	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+		return {**result, "show_correct_answers": False, "questions": []}
 
 	questions = frappe.get_all(
 		"LMS Quiz Result",
@@ -271,13 +278,7 @@ def get_submission_answers(submission: str):
 		if reveal:
 			question["correct_answer"] = _correct_answer(question.question_name, question.question_type)
 
-	return {
-		"submission": submission,
-		"quiz": row.quiz,
-		"member": row.member,
-		"show_correct_answers": reveal,
-		"questions": questions,
-	}
+	return {**result, "show_correct_answers": reveal, "questions": questions}
 
 
 def _like(term: str) -> str:

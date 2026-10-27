@@ -81,8 +81,12 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		submission.save(ignore_permissions=True)
 		cls.submission = submission
 
-	def _call(self, user, show_answers=0):
-		frappe.db.set_value("LMS Quiz", self.quiz.name, "show_answers", show_answers)
+	def _call(self, user, show_answers=0, show_answer_review=1):
+		frappe.db.set_value(
+			"LMS Quiz",
+			self.quiz.name,
+			{"show_answers": show_answers, "show_answer_review": show_answer_review},
+		)
 		original = frappe.session.user
 		frappe.session.user = user
 		try:
@@ -122,6 +126,16 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 	def test_learner_gets_the_correct_answer_when_show_answers_is_on(self):
 		data = self._call(self.learner.name, show_answers=1)
 		self.assertTrue(data["show_correct_answers"])
+		self.assertEqual(data["questions"][0]["correct_answer"], "Right")
+
+	def test_learner_gets_no_questions_when_answer_review_is_off(self):
+		data = self._call(self.learner.name, show_answers=1, show_answer_review=0)
+		self.assertFalse(data["show_correct_answers"])
+		self.assertEqual(data["questions"], [])
+
+	def test_instructor_still_reads_the_answers_when_answer_review_is_off(self):
+		data = self._call(self.instructor.name, show_answer_review=0)
+		self.assertEqual(len(data["questions"]), 1)
 		self.assertEqual(data["questions"][0]["correct_answer"], "Right")
 
 	def test_unknown_submission_is_a_validation_error(self):

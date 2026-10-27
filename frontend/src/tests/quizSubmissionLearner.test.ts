@@ -153,6 +153,14 @@ describe('QuizSubmission opened by the learner', () => {
 		wrapper.unmount()
 	})
 
+	it('hides the answers when the server sends no questions', async () => {
+		held.answers.data = { questions: [] }
+		const wrapper = await mountPage({ name: LEARNER })
+		expect(wrapper.find('[data-testid="review-hidden"]').exists()).toBe(true)
+		expect(wrapper.text()).not.toContain('Pick one')
+		wrapper.unmount()
+	})
+
 	it('sends a learner away when the server refuses the submission', async () => {
 		const wrapper = await mountPage({ name: 'someone-else@example.com' })
 		held.docOptions.onError(new Error('PermissionError'))

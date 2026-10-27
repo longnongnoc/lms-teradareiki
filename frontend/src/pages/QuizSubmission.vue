@@ -92,6 +92,14 @@
 					{{ __('No questions were attempted in this submission.') }}
 				</p>
 
+				<p
+					v-else-if="reviewHidden"
+					data-testid="review-hidden"
+					class="px-5 text-base leading-6 text-ink-gray-6"
+				>
+					{{ __('The answers are not shown for this quiz.') }}
+				</p>
+
 				<div v-else class="divide-y">
 					<div
 						v-for="(row, index) in submissionDetails.doc.result"
@@ -528,6 +536,12 @@ const submissionAnswers = createResource({
 	},
 	auto: true,
 })
+
+// With Show Answer Review off the server sends a learner no questions, so their
+// answers stay hidden here too, also until that reply has arrived.
+const reviewHidden = computed(
+	() => !isStaff.value && !submissionAnswers.data?.questions?.length
+)
 
 const correctAnswers = computed(() =>
 	Object.fromEntries(
