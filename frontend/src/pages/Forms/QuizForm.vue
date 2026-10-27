@@ -607,8 +607,10 @@ const deleteQuiz = () => {
 				label: __('Delete'),
 				theme: 'red',
 				variant: 'solid',
+				// Returned, so the dialog shows Delete loading until the server
+				// answers, and closed only then, whether the delete went through or not.
 				onClick({ close }) {
-					quizDetails.value.delete
+					return quizDetails.value.delete
 						.submit()
 						.then(() => {
 							toast.success(__('Quiz deleted successfully'))
@@ -623,7 +625,7 @@ const deleteQuiz = () => {
 									: resourceErrorMessage(err, __('Could not delete the quiz'))
 							)
 						})
-					close()
+						.finally(close)
 				},
 			},
 		],

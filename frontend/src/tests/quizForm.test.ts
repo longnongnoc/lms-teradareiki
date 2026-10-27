@@ -1038,10 +1038,12 @@ describe('QuizForm: practical max marks', () => {
 // Frappe's link check blocks deleting a quiz that has submissions or practical
 // scores (LinkExistsError); nothing cascades. The dialog and the toast say so.
 describe('QuizForm: deleting the quiz', () => {
+	const close = vi.fn()
 	const confirmDelete = async (wrapper: any) => {
+		close.mockClear()
 		await headerButton(wrapper, 'Delete')!.trigger('click')
 		const { message, actions } = $dialog.mock.calls.at(-1)![0]
-		actions[0].onClick({ close: vi.fn() })
+		actions[0].onClick({ close })
 		await flushPromises()
 		return message
 	}
@@ -1066,6 +1068,22 @@ describe('QuizForm: deleting the quiz', () => {
 			'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
 		)
 		expect(toast.success).not.toHaveBeenCalled()
+		expect(close).toHaveBeenCalledTimes(1)
+	})
+
+	it('closes the dialog once the server answers, not before', async () => {
+		let answer: (value: void) => void = () => {}
+		deleteSubmit.mockReturnValueOnce(
+			new Promise<void>((resolve) => (answer = resolve))
+		)
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await confirmDelete(wrapper)
+		expect(close).not.toHaveBeenCalled()
+
+		answer()
+		await flushPromises()
+		expect(toast.success).toHaveBeenCalled()
+		expect(close).toHaveBeenCalledTimes(1)
 	})
 })
 
