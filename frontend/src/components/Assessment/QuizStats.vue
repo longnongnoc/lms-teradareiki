@@ -57,7 +57,7 @@ const props = defineProps<{
 	passingPercentage?: number
 	attemptsLeft?: number | null
 	maxAttempts?: number | null
-	// Left out, the cell is not drawn: only the learner intro passes it.
+	// Left out, the cell is not drawn.
 	totalMarks?: number | null
 }>()
 
