@@ -3,9 +3,9 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 vi.stubGlobal('__', (text: string) => text)
 
-// The course Settings tab saves through its Save button (or Ctrl+S), with an
-// autosave once every 5 minutes while unsaved. It used to save 1 s after each
-// edit, so a browser page translation of the description was stored.
+// The course Settings tab saves through its Save button (or Ctrl+S) and when the
+// tab is left, never on a timer. It used to save 1 s after each edit, so a
+// browser page translation of the description was stored.
 
 const { docResource, validation, section } = vi.hoisted(() => ({
 	docResource: { current: null as any },
@@ -82,7 +82,6 @@ vi.mock('@/components/SkeletonLoader.vue', () => ({
 
 import CourseForm from '@/pages/Courses/CourseForm.vue'
 
-const FIVE_MINUTES = 5 * 60 * 1000
 
 function mountForm() {
 	return mount(CourseForm, {
@@ -113,7 +112,7 @@ async function idle(ms: number) {
 	await flushPromises()
 }
 
-describe('course Settings tab: Save button plus 5-minute autosave', () => {
+describe('course Settings tab: Save button, no autosave', () => {
 	let wrapper: VueWrapper
 
 	beforeEach(() => {
@@ -139,16 +138,13 @@ describe('course Settings tab: Save button plus 5-minute autosave', () => {
 		expect(submit()).not.toHaveBeenCalled()
 	})
 
-	it('saves once 5 minutes pass, counted from the first edit', async () => {
+	it('never saves by itself, however long it stays unsaved', async () => {
 		wrapper = mountForm()
 		await edit(wrapper, '<p>One</p>')
-		await idle(4 * 60 * 1000)
-		await edit(wrapper, '<p>Two</p>')
-		await idle(60 * 1000 - 1)
-		expect(submit()).not.toHaveBeenCalled()
+		await idle(60 * 60 * 1000)
 
-		await idle(1)
-		expect(submit()).toHaveBeenCalledTimes(1)
+		expect(submit()).not.toHaveBeenCalled()
+		expect(isDirty(wrapper)).toBe(true)
 	})
 
 	it('saves at once on Save and clears the badge', async () => {
@@ -160,7 +156,7 @@ describe('course Settings tab: Save button plus 5-minute autosave', () => {
 		docResource.current.lastHandlers.onSuccess()
 		await flushPromises()
 		expect(isDirty(wrapper)).toBe(false)
-		await idle(2 * FIVE_MINUTES)
+		await idle(60 * 60 * 1000)
 		expect(submit()).toHaveBeenCalledTimes(1)
 	})
 
@@ -189,18 +185,6 @@ describe('course Settings tab: Save button plus 5-minute autosave', () => {
 		older.onSuccess()
 		await flushPromises()
 		expect(isDirty(wrapper)).toBe(true)
-	})
-
-	it('retries 5 minutes later while a required field blocks the save', async () => {
-		wrapper = mountForm()
-		validation.error = 'Add a Title before saving.'
-		await edit(wrapper, '<p>Edited</p>')
-
-		await idle(FIVE_MINUTES)
-		expect(submit()).not.toHaveBeenCalled()
-		validation.error = null
-		await idle(FIVE_MINUTES)
-		expect(submit()).toHaveBeenCalledTimes(1)
 	})
 
 	it('saves pending edits when the tab is left', async () => {

@@ -66,6 +66,7 @@ import {
 	Undo,
 } from 'frappe-ui/editor'
 import type { MentionSuggestionItem, UploadFunction } from 'frappe-ui/editor'
+import { FrameImages, ImageFrame } from '@/components/editor/imageFrame'
 import {
 	boxClass,
 	contentClass,
@@ -89,6 +90,8 @@ const props = withDefaults(
 		editorClass?: string
 		placeholder?: string
 		mentions?: MentionSuggestionItem[] | null
+		// Adds the Frame images toolbar button (images shown in one fixed frame).
+		imageFrame?: boolean
 		uploadArgs?: Pick<
 			UploadOptions,
 			'private' | 'folder' | 'doctype' | 'docname' | 'fieldname'
@@ -110,6 +113,7 @@ const props = withDefaults(
 		editorClass: 'prose-sm',
 		placeholder: '',
 		mentions: null,
+		imageFrame: false,
 		uploadArgs: undefined,
 		id: undefined,
 		ariaLabel: undefined,
@@ -158,6 +162,7 @@ const toolbar = [
 	AlignRight,
 	Separator,
 	InsertImage,
+	...(props.imageFrame ? [FrameImages] : []),
 	InsertVideo,
 	Blockquote,
 	InlineCode,
@@ -176,6 +181,7 @@ const extensions = [
 	RichTextKit.configure({
 		mention: props.mentions ? { items: () => props.mentions ?? [] } : false,
 	}),
+	...(props.imageFrame ? [ImageFrame] : []),
 ]
 
 // Uploads default to private so editor images are not served from the

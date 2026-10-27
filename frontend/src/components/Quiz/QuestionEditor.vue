@@ -103,6 +103,7 @@
 					@blur="markEditorTouched"
 					:editable="true"
 					:fixedMenu="true"
+					:imageFrame="true"
 					:placeholder="__('Type your question here')"
 					:fill="fillsHeight"
 					:minHeight="fillsHeight ? '6rem' : '5rem'"

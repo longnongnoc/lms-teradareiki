@@ -197,14 +197,23 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		expect(createLesson().submit).not.toHaveBeenCalled()
 	})
 
-	it('creates the lesson once the title has been idle for 3 s', async () => {
+	it('never creates the lesson on its own, however long the title sits', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, '  Intro  ')
+		await idle(60_000)
+		await titleField(wrapper).trigger('blur')
+		await idle(60_000)
 
-		await idle(2999)
 		expect(createLesson().submit).not.toHaveBeenCalled()
+		// The title only marks the form unsaved, which enables Save.
+		expect((wrapper.vm as any).isDirty).toBe(true)
+	})
 
-		await idle(1)
+	it('creates the lesson on Save', async () => {
+		wrapper = await mountDraft()
+		await typeTitle(wrapper, '  Intro  ')
+		;(wrapper.vm as any).saveLesson()
+
 		expect(createLesson().submit).toHaveBeenCalledTimes(1)
 		expect(createLesson().lastParams).toEqual({
 			chapter: 'CH-1',
@@ -212,38 +221,12 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		})
 	})
 
-	it('restarts the idle wait on every keystroke', async () => {
-		wrapper = await mountDraft()
-		await typeTitle(wrapper, 'In')
-		await idle(2000)
-		await typeTitle(wrapper, 'Intro')
-		await idle(2000)
-
-		expect(createLesson().submit).not.toHaveBeenCalled()
-		await idle(1000)
-		expect(createLesson().submit).toHaveBeenCalledTimes(1)
-	})
-
-	it('creates at once on blur or on save', async () => {
-		wrapper = await mountDraft()
-		await typeTitle(wrapper, 'Intro')
-		await titleField(wrapper).trigger('blur')
-		expect(createLesson().submit).toHaveBeenCalledTimes(1)
-
-		wrapper.unmount()
-		wrapper = await mountDraft()
-		await typeTitle(wrapper, 'Intro')
-		;(wrapper.vm as any).saveLesson()
-		expect(createLesson().submit).toHaveBeenCalledTimes(1)
-	})
-
 	it('does not create a second lesson while the first request is in flight', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 
 		await typeTitle(wrapper, 'Intro to')
-		await idle(3000)
 		await titleField(wrapper).trigger('blur')
 		;(wrapper.vm as any).saveLesson()
 		wrapper.unmount()
@@ -255,17 +238,17 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 	it('retries after a failed create instead of staying stuck', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 		await settleCreate('fail')
 		expect(toast.error).toHaveBeenCalledWith('Lesson title cannot be empty.')
 
 		await typeTitle(wrapper, 'Intro!')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 		expect(createLesson().submit).toHaveBeenCalledTimes(2)
 	})
 
 	it.each(['', '   '])(
-		'creates nothing for the blank title %j: not on idle, blur, save or unmount',
+		'creates nothing for the blank title %j: not on blur, save or unmount',
 		async (blank) => {
 			wrapper = await mountDraft()
 			await typeTitle(wrapper, 'x')
@@ -293,7 +276,7 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 	it('reports the created lesson and keeps the title focused', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 		await settleCreate()
 
 		expect(wrapper.emitted('created')).toEqual([
@@ -306,7 +289,7 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		expect(setValue().submit).not.toHaveBeenCalled()
 	})
 
-	it('keeps body edits made during the draft dirty until Save', async () => {
+	it('writes body edits made during the draft in the Save that creates the lesson', async () => {
 		wrapper = await mountDraft()
 		editorState.saveData.content = paragraph('Body before the title')
 		await editBody(wrapper)
@@ -314,13 +297,11 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		expect(setValue().submit).not.toHaveBeenCalled()
 
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
-		await settleCreate()
-		await idle(800)
-		expect(setValue().submit).not.toHaveBeenCalled()
-		expect((wrapper.vm as any).isDirty).toBe(true)
+		await idle(60_000)
+		expect(createLesson().submit).not.toHaveBeenCalled()
 
 		;(wrapper.vm as any).saveLesson()
+		await settleCreate()
 		await flushPromises()
 
 		expect(setValue().submit).toHaveBeenCalledTimes(1)
@@ -330,13 +311,15 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 		)
 	})
 
-	it('saves title text typed while the create was in flight', async () => {
+	it('keeps title text typed while the create was in flight unsaved until the next Save', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 		await typeTitle(wrapper, 'Intro to sets')
 		await settleCreate()
+		await idle(60_000)
 		expect((wrapper.vm as any).isDirty).toBe(true)
+		expect(setValue().submit).not.toHaveBeenCalled()
 		;(wrapper.vm as any).saveLesson()
 		await flushPromises()
 
@@ -347,11 +330,11 @@ describe('LessonForm draft: a new lesson is created from its title', () => {
 	it('saves later title edits only on Save, never on idle', async () => {
 		wrapper = await mountDraft()
 		await typeTitle(wrapper, 'Intro')
-		await idle(3000)
+		;(wrapper.vm as any).saveLesson()
 		await settleCreate()
 
 		await typeTitle(wrapper, 'Introduction')
-		await idle(5000)
+		await idle(60_000)
 		expect(setValue().submit).not.toHaveBeenCalled()
 
 		;(wrapper.vm as any).saveLesson()

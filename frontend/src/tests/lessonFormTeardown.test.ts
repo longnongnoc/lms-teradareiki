@@ -541,11 +541,10 @@ describe('LessonForm dirty state follows the blocks, not every editor change', (
 	})
 })
 
-// Save is the main way to write, with a slow autosave behind it: once every
-// 5 minutes while the lesson is unsaved, not 800 ms after each keystroke.
-describe('LessonForm 5-minute autosave', () => {
+// Save (button or Ctrl+S) is the only way to write while the form stays open:
+// no timer saves it, however long the lesson sits unsaved.
+describe('LessonForm has no autosave', () => {
 	let wrapper: VueWrapper
-	const FIVE_MINUTES = 5 * 60 * 1000
 
 	beforeEach(() => {
 		vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
@@ -571,33 +570,21 @@ describe('LessonForm 5-minute autosave', () => {
 		await flushPromises()
 	}
 
-	it('saves an unsaved lesson once 5 minutes pass, and not before', async () => {
+	it('never saves an unsaved lesson by itself', async () => {
 		wrapper = await mountLoaded({
 			content: JSON.stringify(paragraph('Body text')),
 		})
 		editorState.saveData.content = paragraph('Edited body')
 		await editEditor(wrapper, 'content')
+		await editTitle(wrapper, 'Edited title')
 		const editLesson = findResource('frappe.client.set_value')
 
-		await idle(FIVE_MINUTES - 1)
+		await idle(60 * 60 * 1000)
 		expect(editLesson.submit).not.toHaveBeenCalled()
-
-		await idle(1)
-		expect(editLesson.submit).toHaveBeenCalledTimes(1)
-		expect(editLesson.lastParams.fieldname.content).toContain('Edited body')
+		expect((wrapper.vm as any).isDirty).toBe(true)
 	})
 
-	it('keeps its 5-minute pace while the author keeps typing', async () => {
-		wrapper = await mountLoaded()
-		await editTitle(wrapper, 'One')
-		await idle(4 * 60 * 1000)
-		await editTitle(wrapper, 'Two')
-		await idle(60 * 1000)
-
-		expect(findResource('frappe.client.set_value').submit).toHaveBeenCalledTimes(1)
-	})
-
-	it('does nothing once the lesson is saved', async () => {
+	it('saves on Save, and does nothing more afterwards', async () => {
 		wrapper = await mountLoaded()
 		await editTitle(wrapper, 'Edited title')
 		;(wrapper.vm as any).saveLesson()
@@ -606,24 +593,13 @@ describe('LessonForm 5-minute autosave', () => {
 		editLesson.lastHandlers.onSuccess()
 		await flushPromises()
 
-		await idle(2 * FIVE_MINUTES)
+		await idle(60 * 60 * 1000)
 		expect(editLesson.submit).toHaveBeenCalledTimes(1)
-	})
-
-	it('tries again 5 minutes later when the save left it unsaved', async () => {
-		wrapper = await mountLoaded()
-		await editTitle(wrapper, 'Edited title')
-		const editLesson = findResource('frappe.client.set_value')
-
-		await idle(FIVE_MINUTES)
-		expect(editLesson.submit).toHaveBeenCalledTimes(1)
-		await idle(FIVE_MINUTES)
-		expect(editLesson.submit).toHaveBeenCalledTimes(2)
 	})
 })
 
-// Edits keep landing while a write is in flight, mostly because the autosave
-// fires mid-typing. A success must not mark them saved.
+// Edits keep landing while a write is in flight, because typing goes on during a
+// save. A success must not mark them saved.
 describe('LessonForm edits made while a save is in flight', () => {
 	let wrapper: VueWrapper
 

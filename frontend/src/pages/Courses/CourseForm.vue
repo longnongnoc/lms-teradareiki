@@ -99,11 +99,11 @@ const courseResource = createDocumentResource({
 }) as Resource<LMSCourse | null>
 
 // Set while the form is being populated from a server fetch so the resulting
-// field updates don't arm autosave (mirrors the lesson editor's load guard).
+// field updates don't mark the course dirty (mirrors the lesson editor's load guard).
 let applyingServerData = false
 
-// Tracks the last validation error surfaced to the user so a repeated autosave
-// attempt with the same unmet requirement doesn't re-toast on every keystroke.
+// Tracks the last validation error surfaced to the user so a repeated attempt
+// with the same unmet requirement doesn't re-toast.
 let lastAutoSaveError: string | null = null
 
 const validateForm = (): string | null =>
@@ -113,13 +113,14 @@ const validateForm = (): string | null =>
 	})
 
 // Edits only mark the course dirty; the header's Save button (or Ctrl+S) writes
-// them. A browser page translation rewrites the description in place, and the
-// old 1 s autosave stored the translation.
+// them. There is no timed autosave: a browser page translation rewrites the
+// description in place, and the old 1 s autosave stored the translation. The one
+// write that is not a click is the flush below, when the Settings tab is left.
 //
 // When a mandatory field is empty or the price is invalid, a save can't
 // succeed. Surface the reason once and keep the "Not Saved" badge (isDirty
 // stays true) so the change isn't silently lost.
-const autoSave = (): void => {
+const saveOnLeave = (): void => {
 	if (!isDirty.value) return
 	const error = validateForm()
 	if (error) {
@@ -142,32 +143,6 @@ const markDirty = (): void => {
 	isDirty.value = true
 }
 
-// While the course stays unsaved it also saves itself every 5 minutes, so a
-// forgotten Save loses at most that much. Not a debounce: steady typing would
-// keep pushing it back.
-const AUTOSAVE_INTERVAL = 5 * 60 * 1000
-let autosaveTimer: ReturnType<typeof setTimeout> | null = null
-
-function armAutosave(): void {
-	if (autosaveTimer) clearTimeout(autosaveTimer)
-	autosaveTimer = setTimeout(() => {
-		autosaveTimer = null
-		if (!isDirty.value) return
-		autoSave()
-		// A failed save leaves the course dirty; try again next round.
-		armAutosave()
-	}, AUTOSAVE_INTERVAL)
-}
-
-watch(isDirty, (dirty) => {
-	if (dirty) {
-		if (!autosaveTimer) armAutosave()
-		return
-	}
-	if (autosaveTimer) clearTimeout(autosaveTimer)
-	autosaveTimer = null
-})
-
 // Closing or reloading the tab runs no unmount flush, so ask first.
 useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
 	if (!isDirty.value) return
@@ -177,9 +152,7 @@ useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
 
 // Switching to another tab unmounts this form; write pending edits first.
 onBeforeUnmount(() => {
-	if (autosaveTimer) clearTimeout(autosaveTimer)
-	autosaveTimer = null
-	autoSave()
+	saveOnLeave()
 })
 
 const courseFormContext: CourseFormContext = {
@@ -257,8 +230,8 @@ const submitCourse = (): void => {
 	updateCourse()
 }
 
-// Numbers each write, so an older response landing after a newer one (the
-// autosave and a Save click overlapping) cannot mark the course saved.
+// Numbers each write, so an older response landing after a newer one (two Save
+// clicks, or one and the leave flush) cannot mark the course saved.
 let saveSeq = 0
 
 const updateCourse = (opts: { silent?: boolean } = {}): void => {
