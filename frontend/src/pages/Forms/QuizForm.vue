@@ -280,10 +280,7 @@
 					<!-- Learners read this before Start. Its images are public, as
 					     private editor uploads would not reach a learner here. -->
 					<div v-if="!isNew" class="space-y-1.5">
-						<div
-							id="quiz-instructions-label"
-							class="text-xs text-ink-gray-6"
-						>
+						<div id="quiz-instructions-label" class="text-xs text-ink-gray-6">
 							{{ __('Instructions') }}
 						</div>
 						<RichTextEditor
