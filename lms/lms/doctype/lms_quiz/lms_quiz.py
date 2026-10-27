@@ -190,7 +190,7 @@ class LMSQuiz(AuthoredDocument, Document):
 			return result[0]
 
 
-@frappe.whitelist()
+@frappe.whitelist(methods=["POST"])
 def duplicate_quiz(quiz: str) -> str:
 	"""Copy a quiz's settings and question rows into a new quiz, returning its name.
 
