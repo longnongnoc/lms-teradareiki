@@ -150,7 +150,10 @@ vi.mock('@framework/ui/telemetry/index', () => ({
 	useTelemetry: () => ({ capture: vi.fn() }),
 }))
 
+const callMock = vi.hoisted(() => vi.fn())
+
 vi.mock('frappe-ui', () => ({
+	call: callMock,
 	createResource: createResourceMock,
 	createDocumentResource: createDocumentResourceMock,
 	usePageMeta: vi.fn(),
@@ -337,6 +340,17 @@ vi.mock('@/components/Quiz.vue', () => ({
 			preview: { type: Boolean, default: false },
 		},
 		template: `<div data-testid="student-quiz" :data-quiz="quizName" :data-preview="preview" />`,
+	},
+}))
+
+// The real editor pulls in tiptap and frappe-ui's upload composable, neither of
+// which this file mocks. A textarea keeps the content/change contract.
+vi.mock('@/components/RichTextEditor.vue', () => ({
+	default: {
+		name: 'RichTextEditor',
+		props: ['content', 'editable'],
+		emits: ['change'],
+		template: `<textarea :value="content" :readonly="editable === false" @input="$emit('change', $event.target.value)" />`,
 	},
 }))
 
@@ -1018,5 +1032,115 @@ describe('QuizForm: practical max marks', () => {
 		await pressSave()
 
 		expect(lastSaved().practical_max_marks).toBe(0)
+	})
+})
+
+// Frappe's link check blocks deleting a quiz that has submissions or practical
+// scores (LinkExistsError); nothing cascades. The dialog and the toast say so.
+describe('QuizForm: deleting the quiz', () => {
+	const close = vi.fn()
+	const confirmDelete = async (wrapper: any) => {
+		close.mockClear()
+		await headerButton(wrapper, 'Delete')!.trigger('click')
+		const { message, actions } = $dialog.mock.calls.at(-1)![0]
+		actions[0].onClick({ close })
+		await flushPromises()
+		return message
+	}
+
+	it('does not claim submissions are removed', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		const message = await confirmDelete(wrapper)
+
+		expect(message).not.toContain('and its submissions')
+		expect(message).toContain('cannot be deleted')
+	})
+
+	it('explains a delete blocked by linked submissions', async () => {
+		deleteSubmit.mockRejectedValueOnce({
+			exc_type: 'LinkExistsError',
+			messages: ['Cannot delete or cancel because LMS Quiz QZ-0001 is linked'],
+		})
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await confirmDelete(wrapper)
+
+		expect(toast.error).toHaveBeenCalledWith(
+			'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
+		)
+		expect(toast.success).not.toHaveBeenCalled()
+		expect(close).toHaveBeenCalledTimes(1)
+	})
+
+	it('closes the dialog once the server answers, not before', async () => {
+		let answer: (value: void) => void = () => {}
+		deleteSubmit.mockReturnValueOnce(
+			new Promise<void>((resolve) => (answer = resolve))
+		)
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await confirmDelete(wrapper)
+		expect(close).not.toHaveBeenCalled()
+
+		answer()
+		await flushPromises()
+		expect(toast.success).toHaveBeenCalled()
+		expect(close).toHaveBeenCalledTimes(1)
+	})
+})
+
+describe('QuizForm: instructions', () => {
+	const editor = (wrapper: any) =>
+		wrapper.find('[data-testid="quiz-instructions-editor"]')
+
+	it('saves what the author types into the instructions', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await editor(wrapper).setValue('<p>Read each question twice.</p>')
+		await pressSave()
+
+		expect(setValueSubmit.mock.calls.at(-1)![0].instructions).toBe(
+			'<p>Read each question twice.</p>'
+		)
+	})
+
+	// tiptap writes "<p></p>" for an empty document.
+	it('leaves a quiz without instructions saved when the editor writes empty markup', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await editor(wrapper).setValue('<p></p>')
+
+		expect(wrapper.vm.quizDetails.isDirty).toBe(false)
+		expect(badge(wrapper).text()).toBe('Saved')
+	})
+
+	it('saves cleared instructions as empty, not as an empty paragraph', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW], {
+			instructions: '<p>Old</p>',
+		})
+		await editor(wrapper).setValue('<p></p>')
+		await pressSave()
+
+		expect(setValueSubmit.mock.calls.at(-1)![0].instructions).toBeNull()
+	})
+})
+
+describe('QuizForm: duplicate', () => {
+	it('copies the quiz on the server and opens the copy', async () => {
+		callMock.mockResolvedValueOnce('QZ-0002')
+		const { wrapper, router } = await mountForm([CHOICE_ROW])
+		await headerButton(wrapper, 'Duplicate')!.trigger('click')
+		await flushPromises()
+
+		expect(callMock).toHaveBeenCalledWith(
+			'lms.lms.doctype.lms_quiz.lms_quiz.duplicate_quiz',
+			{ quiz: 'QZ-0001' }
+		)
+		expect(router.currentRoute.value.params.quizID).toBe('QZ-0002')
+	})
+
+	it('waits for unsaved changes before copying', async () => {
+		const { wrapper } = await mountForm([CHOICE_ROW])
+		await makeDirty(wrapper)
+
+		expect(
+			headerButton(wrapper, 'Duplicate')!.attributes('disabled')
+		).toBeDefined()
 	})
 })

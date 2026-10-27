@@ -29,6 +29,16 @@
 						:label="__('Submissions')"
 						@click="goToSubmissions"
 					/>
+					<!-- The copy is made from the saved quiz, so unsaved work waits. -->
+					<HeaderButton
+						v-if="!locked"
+						variant="subtle"
+						icon="lucide-copy"
+						:label="__('Duplicate')"
+						:loading="duplicating"
+						:disabled="hasUnsavedWork"
+						@click="duplicate"
+					/>
 					<HeaderButton
 						v-if="!locked"
 						variant="subtle"
@@ -267,6 +277,25 @@
 						@blur="createIfNamed"
 						@keydown.enter.prevent="createIfNamed"
 					/>
+					<!-- Learners read this before Start. Its images are public, as
+					     private editor uploads would not reach a learner here. -->
+					<div v-if="!isNew" class="space-y-1.5">
+						<div id="quiz-instructions-label" class="text-xs text-ink-gray-6">
+							{{ __('Instructions') }}
+						</div>
+						<RichTextEditor
+							data-testid="quiz-instructions-editor"
+							ariaLabelledby="quiz-instructions-label"
+							:content="doc.instructions"
+							@change="setInstructions"
+							:editable="!locked"
+							:fixedMenu="true"
+							:uploadArgs="{ private: false }"
+							:placeholder="__('Shown to learners before they start the quiz')"
+							minHeight="5rem"
+							maxHeight="18rem"
+						/>
+					</div>
 					<FormControl
 						type="number"
 						v-model="doc.max_attempts"
@@ -456,6 +485,7 @@ import Draggable from 'vuedraggable'
 import QuestionCard from '@/components/Quiz/QuestionCard.vue'
 import QuestionBankPanel from '@/components/Quiz/QuestionBankPanel.vue'
 import Quiz from '@/components/Quiz.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
 import {
 	allowedUiTypesFor,
 	allowedQuestionTypesFor,
@@ -496,6 +526,8 @@ import { joinSentences } from '@/utils/quizSummary'
 import { getLmsRoute } from '@/utils/basePath'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import { useCanWrite } from '@/composables/useCanWrite'
+import { duplicateQuiz } from '@/utils/quizDuplicate'
+import { htmlToText } from '@/utils/inertHtml'
 
 const { brand } = sessionStore()
 const rightPanel = ref('settings') // 'settings' | 'bank'
@@ -546,28 +578,54 @@ const router = useRouter()
 const readOnlyMode = window.read_only_mode
 const { $dialog } = getCurrentInstance().appContext.config.globalProperties
 
+const duplicating = ref(false)
+const duplicate = async () => {
+	duplicating.value = true
+	await duplicateQuiz(quizDetails.value.doc.name, router)
+	duplicating.value = false
+}
+
+// An empty editor still writes "<p></p>". Kept out of the doc, it neither marks
+// a pristine quiz unsaved nor saves an empty box for learners.
+const isBlankHtml = (html) =>
+	!htmlToText(html) && !/<(img|iframe|video)\b/i.test(html || '')
+const setInstructions = (val) => {
+	if (!isBlankHtml(val)) doc.value.instructions = val
+	else if (!isBlankHtml(doc.value.instructions)) doc.value.instructions = null
+}
+
 const deleteQuiz = () => {
 	$dialog({
 		title: __('Delete this quiz?'),
+		// Frappe refuses to delete a doc that others link to, and LMS Quiz
+		// Submission and LMS Quiz Practical Score both link to the quiz.
 		message: __(
-			'Deleting this quiz permanently removes it and its submissions. This action cannot be undone. Are you sure you want to continue?'
+			'Deleting this quiz permanently removes it. Its questions stay in the question bank. A quiz that already has submissions or practical scores cannot be deleted. This action cannot be undone. Are you sure you want to continue?'
 		),
 		actions: [
 			{
 				label: __('Delete'),
 				theme: 'red',
 				variant: 'solid',
+				// Returned, so the dialog shows Delete loading until the server
+				// answers, and closed only then, whether the delete went through or not.
 				onClick({ close }) {
-					quizDetails.value.delete
+					return quizDetails.value.delete
 						.submit()
 						.then(() => {
 							toast.success(__('Quiz deleted successfully'))
 							router.push({ name: 'Quizzes' })
 						})
 						.catch((err) => {
-							toast.error(err.messages?.[0] || __('Could not delete the quiz'))
+							toast.error(
+								err?.exc_type === 'LinkExistsError'
+									? __(
+											'This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted.'
+									  )
+									: resourceErrorMessage(err, __('Could not delete the quiz'))
+							)
 						})
-					close()
+						.finally(close)
 				},
 			},
 		],

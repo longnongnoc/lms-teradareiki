@@ -84,6 +84,7 @@
 						:duration="quiz.data.duration"
 						:passingPercentage="quiz.data.passing_percentage"
 						:attemptsLeft="attemptsLeft"
+						:totalMarks="quiz.data.total_marks || null"
 					/>
 					<QuizResultSummary v-if="!preview" :quiz="quiz.data.name" />
 
@@ -119,6 +120,20 @@
 							}}
 						</span>
 					</div>
+				</div>
+
+				<div
+					v-if="hasInstructions"
+					data-testid="quiz-instructions"
+					class="space-y-2 border-b border-outline-gray-1 p-3.5"
+				>
+					<div class="text-sm text-ink-gray-6">
+						{{ __('Instructions') }}
+					</div>
+					<div
+						v-safe-html:rich="quiz.data.instructions"
+						class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal"
+					></div>
 				</div>
 
 				<div
@@ -1031,6 +1046,7 @@ import {
 } from '@/utils/submissionAnswers'
 import type { SubmissionAnswers } from '@/utils/submissionAnswers'
 import { safeUrl } from '@/utils/safeUrl'
+import { htmlToText } from '@/utils/inertHtml'
 import {
 	isOptionPresent,
 	optionImage,
@@ -1380,6 +1396,12 @@ const quizSubtitle = computed(() =>
 		quiz.data?.passing_percentage
 	)
 )
+
+// An emptied editor still saves "<p></p>", which must not draw an empty box.
+const hasInstructions = computed(() => {
+	const html = quiz.data?.instructions || ''
+	return !!htmlToText(html) || /<(img|iframe|video)\b/i.test(html)
+})
 
 const introTips = computed(() => {
 	if (!quiz.data) return []

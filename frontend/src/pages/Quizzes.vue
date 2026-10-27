@@ -28,6 +28,14 @@
 				:label="__('Questions')"
 				icon="lucide-circle-help"
 			/>
+			<HeaderButton
+				v-if="!readOnlyMode && user.data?.is_moderator"
+				:label="__('Import')"
+				icon="lucide-upload"
+				@click="showImport = true"
+			/>
+			<!-- Teleported by Dialog, so it can sit in the slot. -->
+			<QuizImportDialog v-model="showImport" @imported="quizzes.reload()" />
 			<Button v-if="!readOnlyMode" variant="solid" @click="createQuiz">
 				<template #prefix>
 					<span class="lucide-plus size-4" />
@@ -57,6 +65,16 @@
 		<template #selection-actions="{ selections }">
 			<span class="sr-only" role="status">{{ deleteAnnouncement }}</span>
 			<Button
+				v-if="selections.size === 1 && !readOnlyMode"
+				variant="ghost"
+				:label="__('Duplicate')"
+				@click="duplicateQuiz([...selections][0], router)"
+			>
+				<template #icon>
+					<span class="lucide-copy size-4" aria-hidden="true" />
+				</template>
+			</Button>
+			<Button
 				variant="ghost"
 				:label="deleting ? __('Deleting…') : __('Delete')"
 				:aria-disabled="deleting"
@@ -78,11 +96,13 @@
 import { Button, Checkbox, createListResource, usePageMeta } from 'frappe-ui'
 import ListPage from '@/components/Layouts/pages/ListPage.vue'
 import HeaderButton from '@/components/HeaderButton.vue'
+import QuizImportDialog from '@/components/Quiz/QuizImportDialog.vue'
 import { useRouter } from 'vue-router'
 import { computed, inject, onMounted, ref, watch } from 'vue'
 
 import { sessionStore } from '@/stores/session'
 import { useBulkDeleteAction } from '@/utils/bulkDelete'
+import { duplicateQuiz } from '@/utils/quizDuplicate'
 
 const { brand } = sessionStore()
 const user = inject('$user')
@@ -91,6 +111,8 @@ const router = useRouter()
 const search = ref('')
 const readOnlyMode = window.read_only_mode
 const quizFilters = ref({})
+// import_tests is gated to System Manager and Moderator on the server.
+const showImport = ref(false)
 
 onMounted(() => {
 	if (
