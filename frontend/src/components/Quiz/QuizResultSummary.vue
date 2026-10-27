@@ -135,7 +135,9 @@ const props = defineProps<{
 }>()
 // The summary once it has loaded, or null when the call failed, so the quiz
 // screen can take its pass or fail from here rather than ask again.
-const emit = defineEmits<{ (e: 'loaded', summary: ResultSummary | null): void }>()
+const emit = defineEmits<{
+	(e: 'loaded', summary: ResultSummary | null): void
+}>()
 
 const summary = ref<ResultSummary | null>(null)
 let latestRequest = 0

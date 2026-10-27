@@ -731,7 +731,9 @@
 							class="text-p-base text-ink-gray-9 break-words [&_img]:h-auto [&_img]:max-w-full"
 						/>
 						<p class="text-sm text-ink-gray-7">
-							<span class="me-1.5 text-ink-gray-6">{{ __('Your answer:') }}</span>
+							<span class="me-1.5 text-ink-gray-6">{{
+								__('Your answer:')
+							}}</span>
 							{{ item.answer || '-' }}
 						</p>
 						<p
