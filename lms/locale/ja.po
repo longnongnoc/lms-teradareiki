@@ -52002,3 +52002,11 @@ msgstr "{0} (コピー {1})"
 #: frontend/src/components/Quiz/QuizImportDialog.vue
 msgid "1 test imported"
 msgstr "1件のテストをインポートしました"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Importing…"
+msgstr "インポートしています…"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "1 question"
+msgstr "1問"

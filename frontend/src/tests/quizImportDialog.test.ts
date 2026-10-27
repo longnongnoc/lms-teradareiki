@@ -115,6 +115,31 @@ describe('QuizImportDialog', () => {
 		expect(confirm(wrapper).exists()).toBe(false)
 	})
 
+	it('says it is importing, not checking, while the import runs', async () => {
+		let finish: (value: unknown) => void = () => {}
+		call
+			.mockResolvedValueOnce(RESULT)
+			.mockReturnValueOnce(new Promise((resolve) => (finish = resolve)))
+		const wrapper = mountDialog()
+		await pick(wrapper, '{"tests": []}')
+		await confirm(wrapper).trigger('click')
+
+		expect(wrapper.text()).toContain('Importing…')
+		expect(wrapper.text()).not.toContain('Checking file…')
+		finish(RESULT)
+		await flushPromises()
+		expect(wrapper.text()).not.toContain('Importing…')
+	})
+
+	it('says it is checking while the dry run runs', async () => {
+		call.mockReturnValueOnce(new Promise(() => {}))
+		const wrapper = mountDialog()
+		await pick(wrapper, '{}')
+
+		expect(wrapper.text()).toContain('Checking file…')
+		expect(wrapper.text()).not.toContain('Importing…')
+	})
+
 	it('lists every row of a file that repeats a title', async () => {
 		call.mockResolvedValueOnce({
 			...RESULT,
@@ -128,9 +153,10 @@ describe('QuizImportDialog', () => {
 		const wrapper = mountDialog()
 		await pick(wrapper, '{"tests": []}')
 
-		expect(
-			wrapper.find('[data-testid="quiz-import-created"]').findAll('li')
-		).toHaveLength(2)
+		const rows = wrapper.findAll('[data-testid="quiz-import-created"] li')
+		expect(rows).toHaveLength(2)
+		expect(rows[0].text()).toContain('(1 question)')
+		expect(rows[1].text()).toContain('(2 questions)')
 		expect(String(warn.mock.calls)).not.toContain('Duplicate keys')
 		warn.mockRestore()
 	})

@@ -23,7 +23,10 @@
 					@change="pickFile"
 				/>
 
-				<p v-if="busy" class="text-ink-gray-6">{{ __('Checking file…') }}</p>
+				<!-- A dry run starts with no result; the real import runs on top of one. -->
+				<p v-if="busy" class="text-ink-gray-6">
+					{{ result ? __('Importing…') : __('Checking file…') }}
+				</p>
 
 				<template v-if="result">
 					<div
@@ -61,7 +64,7 @@
 									{{
 										row.reason
 											? `(${row.reason})`
-											: `(${__('{0} questions').format(row.questions)})`
+											: `(${questionCount(row.questions)})`
 									}}
 								</span>
 							</li>
@@ -155,6 +158,9 @@ const groups = computed(() => {
 		{ key: 'skipped', label: __('Skipped'), rows: result.value.skipped },
 	].filter((group) => group.rows.length)
 })
+
+const questionCount = (count?: number) =>
+	count === 1 ? __('1 question') : __('{0} questions').format(count)
 
 const importTests = (dryRun: boolean) =>
 	call('lms.lms.test_import.import_tests', {
