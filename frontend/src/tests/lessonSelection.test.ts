@@ -133,6 +133,12 @@ describe('highlightText', () => {
 			highlighted_text: 'bold line ends here.\nSecond line',
 		})
 
+		// Drawn again when the notes reload: must not nest a second set of spans.
+		highlightText({
+			...note,
+			highlighted_text: 'bold line ends here.\nSecond line',
+		})
+
 		const highlights = document.querySelectorAll('.highlighted-text')
 		expect(Array.from(highlights, (el) => el.textContent)).toEqual([
 			'bold',
