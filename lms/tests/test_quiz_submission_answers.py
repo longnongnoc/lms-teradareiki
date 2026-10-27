@@ -10,6 +10,7 @@ from lms.lms.quiz_results import get_submission_answers
 
 
 def _make_user(email, role):
+	# nosemgrep: lms-unjustified-ignore-permissions - fixture seeding, not the permission under test
 	return frappe.get_doc(
 		{
 			"doctype": "User",
@@ -42,6 +43,7 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 				"is_correct_2": 0,
 			}
 		)
+		# nosemgrep: lms-unjustified-ignore-permissions - fixture seeding, not the permission under test
 		question.save(ignore_permissions=True)
 		cls.question = question
 
@@ -49,6 +51,7 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 		quiz.update({"title": f"Submission Answers Quiz {hash_}", "passing_percentage": 50})
 		quiz.append("questions", {"question": question.name, "marks": 2})
 		quiz.append("authors", {"author": cls.instructor.name})
+		# nosemgrep: lms-unjustified-ignore-permissions - fixture seeding, not the permission under test
 		quiz.save(ignore_permissions=True)
 		cls.quiz = quiz
 
@@ -74,6 +77,7 @@ class TestGetSubmissionAnswers(IntegrationTestCase):
 				],
 			}
 		)
+		# nosemgrep: lms-unjustified-ignore-permissions - fixture seeding, not the permission under test
 		submission.save(ignore_permissions=True)
 		cls.submission = submission
 
