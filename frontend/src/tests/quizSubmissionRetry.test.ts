@@ -16,8 +16,10 @@ const SUBMIT_URL = 'lms.lms.doctype.lms_quiz.lms_quiz.submit_quiz'
 const QUIZ_URL = 'lms.lms.utils.get_quiz_with_questions'
 
 const submitSpy = vi.fn()
-const { toastMock, routerGuards } = vi.hoisted(() => ({
+const { toastMock, routerGuards, callMock } = vi.hoisted(() => ({
 	toastMock: { warning: vi.fn(), error: vi.fn(), success: vi.fn() },
+	// frappe-ui `call`: get_quiz_result_summary, read by the result screen.
+	callMock: vi.fn(),
 	// The guards Quiz.vue registers on the app router, so a test can run a navigation.
 	routerGuards: [] as ((
 		to: { fullPath: string },
@@ -115,7 +117,7 @@ vi.mock('frappe-ui', async () => {
 	const passthrough = { template: '<div><slot /></div>' }
 	return {
 		createResource,
-		call: vi.fn(),
+		call: callMock,
 		toast: toastMock,
 		Button: {
 			emits: ['click'],
@@ -509,6 +511,7 @@ describe('Quiz.vue result', () => {
 		submitOutcome = 'succeeds'
 		localStorage.clear()
 		vi.useFakeTimers()
+		callMock.mockResolvedValue({ status: 'Fail' })
 	})
 
 	afterEach(() => {
@@ -553,6 +556,7 @@ describe('Quiz.vue result', () => {
 	})
 
 	it('says Passed on a pass', async () => {
+		callMock.mockResolvedValue({ status: 'Pass' })
 		const wrapper = await finish(
 			{ enable_proctoring: 0 },
 			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
@@ -561,6 +565,49 @@ describe('Quiz.vue result', () => {
 		await runDeferredSubmit()
 
 		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Passed')
+		wrapper.unmount()
+	})
+
+	// submit_quiz's own flag knows nothing of the practical score, so a passing
+	// test score used to say Passed above "Waiting for practical score".
+	it('takes the verdict from the result summary, not from submit_quiz', async () => {
+		callMock.mockResolvedValue({ status: 'Fail' })
+		const wrapper = await finish(
+			{ enable_proctoring: 0 },
+			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
+		)
+		;(wrapper.vm as any).submitQuiz()
+		await runDeferredSubmit()
+
+		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Failed')
+		wrapper.unmount()
+	})
+
+	it('shows no verdict while the practical score is still to come', async () => {
+		callMock.mockResolvedValue({ status: 'Pending Practical' })
+		const wrapper = await finish(
+			{ enable_proctoring: 0 },
+			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
+		)
+		;(wrapper.vm as any).submitQuiz()
+		await runDeferredSubmit()
+
+		expect(wrapper.find('[data-testid="quiz-verdict"]').exists()).toBe(false)
+		expect(wrapper.text()).not.toContain('Passed')
+		expect(wrapper.text()).toContain('Waiting for practical score')
+		wrapper.unmount()
+	})
+
+	it('shows no verdict when the result summary cannot be loaded', async () => {
+		callMock.mockRejectedValue(new Error('offline'))
+		const wrapper = await finish(
+			{ enable_proctoring: 0 },
+			{ ...failedWithRetries, score: 16, percentage: 80, pass: true }
+		)
+		;(wrapper.vm as any).submitQuiz()
+		await runDeferredSubmit()
+
+		expect(wrapper.find('[data-testid="quiz-verdict"]').exists()).toBe(false)
 		wrapper.unmount()
 	})
 

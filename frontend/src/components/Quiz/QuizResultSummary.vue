@@ -133,6 +133,9 @@ const props = defineProps<{
 	// Changes whenever a new attempt is saved, so the summary refetches.
 	refreshKey?: string | number | null
 }>()
+// The summary once it has loaded, or null when the call failed, so the quiz
+// screen can take its pass or fail from here rather than ask again.
+const emit = defineEmits<{ (e: 'loaded', summary: ResultSummary | null): void }>()
 
 const summary = ref<ResultSummary | null>(null)
 let latestRequest = 0
@@ -156,6 +159,7 @@ async function load(): Promise<void> {
 		if (request !== latestRequest) return
 		summary.value = null
 	}
+	emit('loaded', summary.value)
 }
 
 watch(() => [props.quiz, props.refreshKey], load, { immediate: true })

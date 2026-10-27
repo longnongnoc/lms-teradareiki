@@ -607,7 +607,10 @@
 					</p>
 					<template v-else>
 						<div class="space-y-2">
+							<!-- The overall result, practical score included: while that is
+							     still to come the summary below says so, and no verdict shows. -->
 							<Badge
+								v-if="resultStatus === 'Pass' || resultStatus === 'Fail'"
 								data-testid="quiz-verdict"
 								size="md"
 								:theme="passed ? 'green' : 'red'"
@@ -647,6 +650,7 @@
 						v-if="!preview"
 						:quiz="quiz.data.name"
 						:refresh-key="quizSubmission.data.submission"
+						@loaded="resultStatus = $event?.status ?? null"
 					/>
 					<p v-if="endedNote" class="text-p-base text-ink-gray-7">
 						{{ endedNote }}
@@ -1856,12 +1860,18 @@ const fillBlankReviewItems = computed(() => {
 	})
 })
 
-const passed = computed(() => {
-	const result = quizSubmission.data
-	if (!result) return false
-	if (typeof result.pass === 'boolean') return result.pass
-	return result.percentage >= (quiz.data?.passing_percentage ?? 0)
-})
+// From get_quiz_result_summary, through QuizResultSummary: unlike submit_quiz's
+// own `pass` it accounts for the practical score. Null until it has loaded.
+const resultStatus = ref<string | null>(null)
+
+watch(
+	() => quizSubmission.data?.submission,
+	() => {
+		resultStatus.value = null
+	}
+)
+
+const passed = computed(() => resultStatus.value === 'Pass')
 
 // Every question of the submission just made, with the learner's answer and
 // marks. The server adds the correct answer only when the quiz shows answers.
