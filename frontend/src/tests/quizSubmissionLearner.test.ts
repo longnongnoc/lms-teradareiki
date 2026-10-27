@@ -172,16 +172,14 @@ describe('QuizSubmission opened by the learner', () => {
 		wrapper.unmount()
 	})
 
-	it('waits for the user before sending anyone away', async () => {
-		const userResource = reactive({ data: null as unknown })
-		const wrapper = await mountPage(null, userResource)
+	it('sends staff away when the server refuses the submission', async () => {
+		const wrapper = await mountPage({
+			name: 'evaluator@example.com',
+			is_evaluator: 1,
+		})
 		held.docOptions.onError(new Error('PermissionError'))
 		await flushPromises()
-		expect(held.push).not.toHaveBeenCalled()
-
-		userResource.data = { name: 'teacher@example.com', is_instructor: 1 }
-		await flushPromises()
-		expect(held.push).not.toHaveBeenCalled()
+		expect(held.push).toHaveBeenCalledWith({ name: 'Courses' })
 		wrapper.unmount()
 	})
 

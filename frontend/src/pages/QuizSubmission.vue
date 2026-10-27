@@ -497,8 +497,8 @@ const router = useRouter()
 const user = inject('$user')
 
 // A learner is sent the link to their own submission, so the page opens for
-// them read-only. Whose submission may be read is the server's call: a
-// learner asking for anyone else's gets an error and is sent away.
+// them read-only. Whose submission may be read is the server's call: anyone
+// it refuses gets an error and is sent away.
 // The roles of the server's _is_staff.
 const isStaff = computed(
 	() =>
@@ -527,25 +527,16 @@ const props = defineProps({
 	},
 })
 
-const refused = ref(false)
-
+// A refused load leaves nothing to read or grade, whoever asked: staff who may
+// not review this submission are sent away just like a learner.
 const submissionDetails = createDocumentResource({
 	doctype: 'LMS Quiz Submission',
 	name: props.submission,
 	auto: true,
 	onError() {
-		refused.value = true
+		router.push({ name: 'Courses' })
 	},
 })
-
-// Decided only once the user has loaded: until then an instructor reads as a
-// learner and would be sent away too.
-watch(
-	() => refused.value && !!user.data && !isStaff.value,
-	(away) => {
-		if (away) router.push({ name: 'Courses' })
-	}
-)
 
 const submissionAnswers = createResource({
 	url: SUBMISSION_ANSWERS_METHOD,
