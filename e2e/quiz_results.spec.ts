@@ -68,7 +68,11 @@ async function withLearnerPage(fn: (page: Page) => Promise<void>) {
 
 // show_answers is on by default, so a choice question is Checked before Submit
 // (same flow as quiz.spec.ts). The option row is a <label> around the radio.
-async function learnerPassesTest(page: Page, quizName: string) {
+async function learnerPassesTest(
+	page: Page,
+	quizName: string,
+	{ verdict = true } = {}
+) {
 	await page.goto(`/lms/quiz/${quizName}`);
 	const start = button(page, "Start Quiz");
 	await expect(start).toBeEnabled();
@@ -81,7 +85,12 @@ async function learnerPassesTest(page: Page, quizName: string) {
 	const submit = waitForApiCall(page, SUBMIT_QUIZ_METHOD);
 	await button(page, "Submit").click();
 	await submit;
-	await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+	// With a practical score still to come the result shows no verdict yet.
+	if (verdict) {
+		await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+	} else {
+		await expect(page.getByTestId("quiz-verdict")).toHaveCount(0);
+	}
 }
 
 const resultsRows = (page: Page) =>
@@ -233,7 +242,7 @@ test.describe("Quiz results and practical score", () => {
 	test("the learner passes the test of both quizzes", async () => {
 		test.setTimeout(90000);
 		await withLearnerPage(async (page) => {
-			await learnerPassesTest(page, practicalQuiz as string);
+			await learnerPassesTest(page, practicalQuiz as string, { verdict: false });
 			// The result screen carries the overall result; with a practical
 			// component still open it says so.
 			await expect(page.getByTestId("summary-status")).toHaveText(
