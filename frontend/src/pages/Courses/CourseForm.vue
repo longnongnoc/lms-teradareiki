@@ -26,13 +26,14 @@ import {
 	getCurrentInstance,
 	inject,
 	nextTick,
+	onBeforeUnmount,
 	onMounted,
 	provide,
 	reactive,
 	ref,
 	watch,
 } from 'vue'
-import { useDebounceFn } from '@vueuse/core'
+import { useEventListener } from '@vueuse/core'
 import { useRouter } from 'vue-router'
 import { getMetaInfo, updateMetaInfo } from '@/utils'
 import { validateCourse } from '@/utils/courseForm'
@@ -111,11 +112,14 @@ const validateForm = (): string | null =>
 		instructors: instructors.value,
 	})
 
-// Debounced so a burst of edits collapses into a single save shortly after the
-// user pauses. When a mandatory field is empty or the price is invalid, the
-// autosave can't succeed. Surface the reason once and keep the "Not Saved"
-// badge (isDirty stays true) so the change isn't silently lost.
-const autoSave = useDebounceFn((): void => {
+// Edits only mark the course dirty; the header's Save button (or Ctrl+S) writes
+// them. A browser page translation rewrites the description in place, and the
+// old 1 s autosave stored the translation.
+//
+// When a mandatory field is empty or the price is invalid, a save can't
+// succeed. Surface the reason once and keep the "Not Saved" badge (isDirty
+// stays true) so the change isn't silently lost.
+const autoSave = (): void => {
 	if (!isDirty.value) return
 	const error = validateForm()
 	if (error) {
@@ -127,13 +131,56 @@ const autoSave = useDebounceFn((): void => {
 	}
 	lastAutoSaveError = null
 	updateCourse({ silent: true })
-}, 1000)
+}
+
+// Counts edits, so a save can tell whether one landed while it was in flight.
+let edits = 0
 
 const markDirty = (): void => {
 	if (applyingServerData) return
+	edits += 1
 	isDirty.value = true
-	autoSave()
 }
+
+// While the course stays unsaved it also saves itself every 5 minutes, so a
+// forgotten Save loses at most that much. Not a debounce: steady typing would
+// keep pushing it back.
+const AUTOSAVE_INTERVAL = 5 * 60 * 1000
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function armAutosave(): void {
+	if (autosaveTimer) clearTimeout(autosaveTimer)
+	autosaveTimer = setTimeout(() => {
+		autosaveTimer = null
+		if (!isDirty.value) return
+		autoSave()
+		// A failed save leaves the course dirty; try again next round.
+		armAutosave()
+	}, AUTOSAVE_INTERVAL)
+}
+
+watch(isDirty, (dirty) => {
+	if (dirty) {
+		if (!autosaveTimer) armAutosave()
+		return
+	}
+	if (autosaveTimer) clearTimeout(autosaveTimer)
+	autosaveTimer = null
+})
+
+// Closing or reloading the tab runs no unmount flush, so ask first.
+useEventListener(window, 'beforeunload', (event: BeforeUnloadEvent) => {
+	if (!isDirty.value) return
+	event.preventDefault()
+	event.returnValue = ''
+})
+
+// Switching to another tab unmounts this form; write pending edits first.
+onBeforeUnmount(() => {
+	if (autosaveTimer) clearTimeout(autosaveTimer)
+	autosaveTimer = null
+	autoSave()
+})
 
 const courseFormContext: CourseFormContext = {
 	resource: courseResource,
@@ -210,7 +257,13 @@ const submitCourse = (): void => {
 	updateCourse()
 }
 
+// Numbers each write, so an older response landing after a newer one (the
+// autosave and a Save click overlapping) cannot mark the course saved.
+let saveSeq = 0
+
 const updateCourse = (opts: { silent?: boolean } = {}): void => {
+	const seq = ++saveSeq
+	const sentEdits = edits
 	// Drop `modified` from the payload: this form does an intentional whole-doc
 	// last-write-wins save, and sending a stale `modified` trips Frappe's
 	// timestamp guard when the course was touched elsewhere (publish toggle,
@@ -225,8 +278,12 @@ const updateCourse = (opts: { silent?: boolean } = {}): void => {
 		},
 		{
 			onSuccess() {
+				if (seq !== saveSeq) return
 				updateMetaInfo('courses', courseResource.doc?.name, meta)
 				if (!opts.silent) toast.success(__('Course updated successfully'))
+				// Edits typed while this was in flight are still unsaved, and the
+				// reload below would replace them with the server's copy.
+				if (edits !== sentEdits) return
 				isDirty.value = false
 				courseResource.reload()
 				// Refresh the shared course resource so sibling tabs (Overview,
