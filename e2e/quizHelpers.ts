@@ -46,10 +46,20 @@ async function callMethod<T>(
 	form: Record<string, string>,
 	what: string
 ): Promise<T> {
-	const response = await api.request.post(`/api/method/${method}`, {
+	// Specs run in parallel and several insert Users at once, which MariaDB can
+	// answer with a deadlock (HTTP 508). It rolls the loser back, so sending the
+	// same request again is safe.
+	let response = await api.request.post(`/api/method/${method}`, {
 		headers: api.headers,
 		form,
 	});
+	for (let retry = 0; retry < 3 && response.status() === 508; retry++) {
+		await new Promise((resolve) => setTimeout(resolve, 200 * (retry + 1)));
+		response = await api.request.post(`/api/method/${method}`, {
+			headers: api.headers,
+			form,
+		});
+	}
 	if (!response.ok()) {
 		throw new Error(
 			`${what} failed: ${response.status()} ${(await response.text()).slice(
