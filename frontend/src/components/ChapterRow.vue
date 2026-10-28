@@ -175,6 +175,15 @@
 									<span class="sr-only">{{ __('Completed') }}</span>
 								</template>
 							</div>
+							<!-- Under the title, past the icon, so a learner knows what a
+							     test holds before opening the lesson. -->
+							<div
+								v-if="lesson.quiz_stats"
+								data-testid="outline-quiz-stats"
+								class="ps-6 text-xs leading-4 text-ink-gray-6 tabular-nums"
+							>
+								{{ quizStatsLabel(lesson.quiz_stats) }}
+							</div>
 						</component>
 						<div v-if="allowEdit" class="ms-auto flex items-center gap-2">
 							<Button
@@ -264,6 +273,16 @@ const emit = defineEmits<{
 
 const route = useRoute()
 const user = inject<SessionUser>('$user')!
+
+const quizStatsLabel = (
+	stats: NonNullable<OutlineLesson['quiz_stats']>
+): string =>
+	[
+		stats.questions === 1
+			? __('1 question')
+			: __('{0} questions').format(stats.questions),
+		stats.marks === 1 ? __('1 mark') : __('{0} marks').format(stats.marks),
+	].join(' · ')
 
 const isRenaming = ref<boolean>(false)
 const renameValue = ref<string>('')
