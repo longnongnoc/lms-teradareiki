@@ -679,7 +679,7 @@ watch(
 
 const formatDate = (value) => {
 	if (!value) return ''
-	return new Date(value).toLocaleDateString(undefined, {
+	return new Date(value).toLocaleDateString(document.documentElement.lang || undefined, {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
@@ -688,7 +688,7 @@ const formatDate = (value) => {
 
 const formatTime = (value) => {
 	if (!value) return ''
-	return new Date(value).toLocaleTimeString(undefined, {
+	return new Date(value).toLocaleTimeString(document.documentElement.lang || undefined, {
 		hour: '2-digit',
 		minute: '2-digit',
 		second: '2-digit',

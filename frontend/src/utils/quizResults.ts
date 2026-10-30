@@ -163,7 +163,9 @@ export const formatResultDate = (value: string | null | undefined): string => {
 	if (!value) return ''
 	const date = new Date(String(value).replace(' ', 'T'))
 	if (Number.isNaN(date.getTime())) return ''
-	return date.toLocaleDateString(undefined, {
+	// The page's language (boot.lang), not the browser's, so a Japanese screen
+	// shows a Japanese date on an English browser.
+	return date.toLocaleDateString(document.documentElement.lang || undefined, {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
