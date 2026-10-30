@@ -20,7 +20,10 @@ class LMSCourseReview(Document):
 			frappe.throw(_("You must be enrolled in the course to submit a review"))
 
 	def validate_if_already_reviewed(self):
-		if frappe.db.exists("LMS Course Review", {"course": self.course, "owner": self.owner}):
+		# Not counting this review itself, so its author can edit it.
+		if frappe.db.exists(
+			"LMS Course Review", {"course": self.course, "owner": self.owner, "name": ["!=", self.name]}
+		):
 			frappe.throw(_("You have already reviewed this course"))
 
 	# The hourly update_course_statistics job also writes this; doing it here

@@ -52037,3 +52037,15 @@ msgstr "提出"
 #: frontend/src/pages/QuizSubmission.vue
 msgid "The answers are not shown for this quiz."
 msgstr "このクイズでは解答は表示されません。"
+
+#: frontend/src/components/Modals/ReviewModal.vue
+msgid "Edit Review"
+msgstr "レビューを編集"
+
+#: frontend/src/components/CourseReviews.vue
+msgid "Delete this review?"
+msgstr "このレビューを削除しますか？"
+
+#: frontend/src/components/CourseReviews.vue
+msgid "This cannot be undone."
+msgstr "この操作は元に戻せません。"

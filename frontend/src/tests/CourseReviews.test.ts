@@ -208,7 +208,23 @@ describe('CourseReviews list rendering', () => {
 		const body = wrapper.get('article p')
 		expect(body.classes()).toContain('line-clamp-5')
 
-		await wrapper.get('article button').trigger('click')
+		const toggle = wrapper
+			.findAll('article button')
+			.find((b) => b.text() === 'See more')!
+		await toggle.trigger('click')
 		expect(wrapper.get('article p').classes()).not.toContain('line-clamp-5')
+	})
+
+	it("offers edit and delete on the learner's own review only", async () => {
+		currentReviews = [
+			review({ name: 'mine' }),
+			review({ name: 'theirs', owner: undefined as unknown as string }),
+		]
+		const wrapper = mountReviews()
+		await flushPromises()
+		const actions = wrapper.findAll('[data-testid="own-review-actions"]')
+		expect(actions).toHaveLength(1)
+		expect(actions[0].text()).toContain('Edit')
+		expect(actions[0].text()).toContain('Delete')
 	})
 })

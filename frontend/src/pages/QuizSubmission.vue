@@ -677,9 +677,12 @@ watch(
 	{ immediate: true }
 )
 
+// The page's language (boot.lang), not the browser's.
+const pageLocale = () => document.documentElement.lang || undefined
+
 const formatDate = (value) => {
 	if (!value) return ''
-	return new Date(value).toLocaleDateString(undefined, {
+	return new Date(value).toLocaleDateString(pageLocale(), {
 		year: 'numeric',
 		month: 'short',
 		day: 'numeric',
@@ -688,7 +691,7 @@ const formatDate = (value) => {
 
 const formatTime = (value) => {
 	if (!value) return ''
-	return new Date(value).toLocaleTimeString(undefined, {
+	return new Date(value).toLocaleTimeString(pageLocale(), {
 		hour: '2-digit',
 		minute: '2-digit',
 		second: '2-digit',

@@ -254,13 +254,7 @@ test.describe("UX feedback fixes", () => {
 	});
 
 	test("editing the review updates the course rating", async () => {
-		// Known app bug: LMS Course Review.validate runs on every save, and
-		// validate_if_already_reviewed finds the review being edited itself, so
-		// any edit throws "You have already reviewed this course" and on_change
-		// never gets to recompute. Expected to fail until that check excludes
-		// self.name; once it does, this starts passing and the marker must go.
-		test.fail();
-		// The page has no edit control, so the edit goes through the API.
+		// Editing used to trip validate_if_already_reviewed on the review itself.
 		await setValues(api as Api, "LMS Course Review", reviewA as string, {
 			rating: 0.6,
 		});

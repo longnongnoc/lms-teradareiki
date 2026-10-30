@@ -433,13 +433,13 @@ test.describe("Quiz answers on the learner's result", () => {
 		});
 		await withPage(japaneseCtx, async (page) => {
 			await page.goto(`/lms/quiz/${quizzes.shown}`);
-			// The history list's header is plain text, not a table: No., Date,
-			// Score, Score out of, Percentage, in that order (lms/locale/ja.po).
-			// The result summary above has its own table with some of the same
-			// words, so the five are matched as one header.
+			// The result summary's attempts table: Attempt, Date, Score, Percentage
+			// (lms/locale/ja.po). The legacy history list under the quiz, with its
+			// No. and Score out of columns, is gone.
 			await expect(
-				page.getByText(/^番号\s*日付\s*スコア\s*満点\s*割合$/)
-			).toBeVisible();
+				page.getByTestId("summary-attempts").locator("thead")
+			).toContainText(/試行\s*日付\s*スコア\s*割合/);
+			await expect(page.getByText(/^番号\s*日付/)).toHaveCount(0);
 			await expect(page.getByText("Score out of")).toHaveCount(0);
 		});
 	});
