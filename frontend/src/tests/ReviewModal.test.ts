@@ -52,8 +52,9 @@ vi.mock('frappe-ui', () => ({
 			@input="$emit('update:modelValue', $event.target.value)" />`,
 	},
 	toast: { error: toastError },
-	createResource: (cfg: typeof resourceConfig) => {
-		resourceConfig = cfg
+	createResource: (cfg: typeof resourceConfig & { url: string }) => {
+		// the insert, not the set_value the modal uses to edit a review
+		if (cfg.url === 'frappe.client.insert') resourceConfig = cfg
 		return {
 			submit: (
 				_values: unknown,
