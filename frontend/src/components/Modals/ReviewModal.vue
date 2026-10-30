@@ -1,7 +1,7 @@
 <template>
 	<Dialog
 		v-model:open="show"
-		:title="__('Write a Review')"
+		:title="editing ? __('Edit Review') : __('Write a Review')"
 		size="xl"
 		:actions="[
 			{
@@ -28,8 +28,8 @@
 import { Dialog, FormControl, createResource, toast, Rating } from 'frappe-ui'
 import type { FrappeResourceError } from 'frappe-ui'
 import { resourceErrorMessage, submitResource } from '@/utils/resource'
-import { reactive } from 'vue'
-import type { Resource } from '@/types'
+import { reactive, watch } from 'vue'
+import type { CourseReviewInfo, Resource } from '@/types'
 
 const show = defineModel<boolean>()
 const reviews = defineModel<Resource<unknown> | undefined>('reloadReviews')
@@ -42,7 +42,16 @@ const review = reactive<{ review: string; rating: number }>({
 
 const props = defineProps<{
 	courseName: string
+	// The learner's own review to edit; null writes a new one.
+	editing?: CourseReviewInfo | null
 }>()
+
+// Start from the review being edited, or blank for a new one, each time it opens.
+watch(show, (open) => {
+	if (!open) return
+	review.rating = props.editing?.rating ?? 0
+	review.review = props.editing?.review ?? ''
+})
 
 const createReview = createResource({
 	url: 'frappe.client.insert',
@@ -59,8 +68,19 @@ const createReview = createResource({
 	},
 })
 
+const updateReview = createResource({
+	url: 'frappe.client.set_value',
+	makeParams() {
+		return {
+			doctype: 'LMS Course Review',
+			name: props.editing?.name,
+			fieldname: { review: review.review, rating: review.rating / 5 },
+		}
+	},
+})
+
 function submitReview(close: () => void) {
-	submitResource(createReview, review, {
+	submitResource(props.editing ? updateReview : createReview, review, {
 		validate() {
 			if (!review.rating) {
 				return 'Please enter a rating.'
