@@ -105,10 +105,17 @@ def get_lesson_count_by_course() -> dict[str, int]:
 
 def get_completion_count_by_member(course: str) -> dict[str, int]:
 	progress = frappe.qb.DocType("LMS Course Progress")
+	chapter_reference = frappe.qb.DocType("Chapter Reference")
+	lesson_reference = frappe.qb.DocType("Lesson Reference")
 
+	# Same rule as get_course_progress(): only lessons still in the outline count.
 	rows = (
 		frappe.qb.from_(progress)
-		.select(progress.member, Count(progress.name).as_("completed"))
+		.inner_join(lesson_reference)
+		.on(lesson_reference.lesson == progress.lesson)
+		.inner_join(chapter_reference)
+		.on((chapter_reference.chapter == lesson_reference.parent) & (chapter_reference.parent == course))
+		.select(progress.member, Count(progress.lesson).distinct().as_("completed"))
 		.where((progress.course == course) & (progress.status == "Complete"))
 		.groupby(progress.member)
 	).run(as_dict=True)
