@@ -51177,7 +51177,7 @@ msgstr "クイズの結果"
 
 #: frontend/src/components/Quiz.vue:568 frontend/src/components/Quiz.vue:640 frontend/src/components/Quiz.vue:1543
 msgid "{0} of {1} marks"
-msgstr "{1}点中{0}点"
+msgstr "{0} / {1}点"
 
 #: frontend/src/components/Quiz.vue:617
 msgid "Try again"

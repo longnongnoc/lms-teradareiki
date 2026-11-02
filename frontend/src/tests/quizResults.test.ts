@@ -67,18 +67,18 @@ describe('formatting', () => {
 		expect(formatNumber('abc')).toBe('')
 	})
 
-	it('writes x of y and a dash for a missing score', () => {
-		expect(formatOutOf(7, 10)).toBe('7 of 10')
+	it('writes x of y marks and a dash for a missing score', () => {
+		expect(formatOutOf(7, 10)).toBe('7 of 10 marks')
 		expect(formatOutOf(null, 10)).toBe('-')
 		expect(formatOutOf(7, null)).toBe('7')
 	})
 
 	it('shows the practical column in each of its states', () => {
 		expect(formatPractical({ practical_score: 4, practical_max: 5 })).toBe(
-			'4 of 5'
+			'4 of 5 marks'
 		)
 		expect(formatPractical({ practical_score: 0, practical_max: 5 })).toBe(
-			'0 of 5'
+			'0 of 5 marks'
 		)
 		expect(formatPractical({ practical_score: null, practical_max: 5 })).toBe(
 			'Not entered'
@@ -97,13 +97,13 @@ describe('formatting', () => {
 			})
 		).toBe('-')
 		expect(formatTest({ test_score: 6, test_out_of: 10, status: 'Fail' })).toBe(
-			'6 of 10'
+			'6 of 10 marks'
 		)
 	})
 
 	it('shows no total while it is pending', () => {
 		expect(formatTotal({ total_score: null, total_out_of: null })).toBe('-')
-		expect(formatTotal({ total_score: 14, total_out_of: 15 })).toBe('14 of 15')
+		expect(formatTotal({ total_score: 14, total_out_of: 15 })).toBe('14 of 15 marks')
 	})
 
 	it('formats a Frappe timestamp and tolerates garbage', () => {

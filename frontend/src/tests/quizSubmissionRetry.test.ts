@@ -536,7 +536,7 @@ describe('Quiz.vue result', () => {
 		await runDeferredSubmit()
 
 		const text = wrapper.text()
-		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Failed')
+		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Fail')
 		expect(text).toContain('8 of 20 marks')
 		expect(text).toContain('40%')
 		expect(wrapper.get('[data-testid="answer-counts"]').text()).toContain(
@@ -560,7 +560,7 @@ describe('Quiz.vue result', () => {
 		;(wrapper.vm as any).submitQuiz()
 		await runDeferredSubmit()
 
-		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Passed')
+		expect(wrapper.get('[data-testid="quiz-verdict"]').text()).toBe('Pass')
 		wrapper.unmount()
 	})
 

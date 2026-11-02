@@ -132,7 +132,7 @@ export const formatOutOf = (
 	const left = formatNumber(score)
 	if (left === '') return '-'
 	const right = formatNumber(outOf)
-	return right === '' ? left : __('{0} of {1}').format(left, right)
+	return right === '' ? left : __('{0} of {1} marks').format(left, right)
 }
 
 type Practical = Pick<ResultSummary, 'practical_score' | 'practical_max'>

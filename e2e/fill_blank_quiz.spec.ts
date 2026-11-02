@@ -287,7 +287,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		await button(page, "Submit").click();
 		await submit;
 
-		await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+		await expect(page.getByTestId("quiz-verdict")).toContainText("Pass");
 		await expect(resultMarks(page)).toContainText("2 of 2 marks");
 
 		const review = page.getByTestId("fill-blank-review");
@@ -335,7 +335,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		await submit;
 
 		// 1 of 2 marks is 50%, under the 60% pass mark.
-		await expect(page.getByTestId("quiz-verdict")).toContainText("Failed");
+		await expect(page.getByTestId("quiz-verdict")).toContainText("Fail");
 		await expect(resultMarks(page)).toContainText("1 of 2 marks");
 
 		const results = page
@@ -381,7 +381,7 @@ test.describe("Fill in the Blanks quiz", () => {
 		await button(page, "Submit").click();
 		await submit;
 
-		await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+		await expect(page.getByTestId("quiz-verdict")).toContainText("Pass");
 		await expect(resultMarks(page)).toContainText("3 of 3 marks");
 		const results = page
 			.getByTestId("fill-blank-review")
@@ -432,6 +432,6 @@ test.describe("Fill in the Blanks quiz", () => {
 		const submit = waitForApiCall(page, SUBMIT_QUIZ_METHOD);
 		await button(page, "Submit").click();
 		await submit;
-		await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+		await expect(page.getByTestId("quiz-verdict")).toContainText("Pass");
 	});
 });

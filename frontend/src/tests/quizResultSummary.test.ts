@@ -93,9 +93,9 @@ describe('QuizResultSummary', () => {
 		callMock.mockResolvedValue(summary())
 		const wrapper = await mountSummary()
 
-		expect(text(wrapper, 'summary-test')).toBe('8 of 10')
-		expect(text(wrapper, 'summary-practical')).toBe('4 of 5')
-		expect(text(wrapper, 'summary-total')).toBe('12 of 15 (80%)')
+		expect(text(wrapper, 'summary-test')).toBe('8 of 10 marks')
+		expect(text(wrapper, 'summary-practical')).toBe('4 of 5 marks')
+		expect(text(wrapper, 'summary-total')).toBe('12 of 15 marks (80%)')
 		expect(text(wrapper, 'summary-pass-mark')).toBe('70%')
 		const status = wrapper.find('[data-testid="summary-status"]')
 		expect(status.text()).toBe('Pass')
@@ -121,7 +121,7 @@ describe('QuizResultSummary', () => {
 		const status = wrapper.find('[data-testid="summary-status"]')
 		expect(status.text()).toBe('Fail')
 		expect(status.attributes('data-theme')).toBe('red')
-		expect(text(wrapper, 'summary-total')).toBe('6 of 15 (40%)')
+		expect(text(wrapper, 'summary-total')).toBe('6 of 15 marks (40%)')
 	})
 
 	it('says it is waiting while the practical score is pending', async () => {
@@ -143,7 +143,7 @@ describe('QuizResultSummary', () => {
 		expect(status.text()).toBe('Waiting for practical score')
 		expect(status.attributes('data-theme')).toBe('amber')
 		expect(wrapper.find('[data-testid="summary-total"]').exists()).toBe(false)
-		expect(text(wrapper, 'summary-test')).toBe('8 of 10')
+		expect(text(wrapper, 'summary-test')).toBe('8 of 10 marks')
 	})
 
 	it('hides the practical row when the quiz has no practical component', async () => {
@@ -160,7 +160,7 @@ describe('QuizResultSummary', () => {
 		expect(wrapper.find('[data-testid="summary-practical"]').exists()).toBe(
 			false
 		)
-		expect(text(wrapper, 'summary-total')).toBe('8 of 10 (80%)')
+		expect(text(wrapper, 'summary-total')).toBe('8 of 10 marks (80%)')
 		expect(wrapper.find('[data-testid="summary-status"]').text()).toBe('Pass')
 	})
 
@@ -223,7 +223,7 @@ describe('QuizResultSummary', () => {
 		await flushPromises()
 
 		expect(callMock).toHaveBeenCalledTimes(2)
-		expect(text(wrapper, 'summary-test')).toBe('9 of 10')
+		expect(text(wrapper, 'summary-test')).toBe('9 of 10 marks')
 	})
 
 	it('keeps the newest response when an older one lands last', async () => {
@@ -242,6 +242,6 @@ describe('QuizResultSummary', () => {
 		releaseFirst(summary({ test_score: 1 }))
 		await flushPromises()
 
-		expect(text(wrapper, 'summary-test')).toBe('9 of 10')
+		expect(text(wrapper, 'summary-test')).toBe('9 of 10 marks')
 	})
 })

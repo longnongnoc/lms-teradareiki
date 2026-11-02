@@ -81,7 +81,7 @@ async function learnerPassesTest(page: Page, quizName: string) {
 	const submit = waitForApiCall(page, SUBMIT_QUIZ_METHOD);
 	await button(page, "Submit").click();
 	await submit;
-	await expect(page.getByTestId("quiz-verdict")).toContainText("Passed");
+	await expect(page.getByTestId("quiz-verdict")).toContainText("Pass");
 }
 
 const resultsRows = (page: Page) =>

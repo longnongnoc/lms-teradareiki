@@ -612,7 +612,7 @@
 								size="md"
 								:theme="passed ? 'green' : 'red'"
 							>
-								{{ passed ? __('Passed') : __('Failed') }}
+								{{ passed ? __('Pass') : __('Fail') }}
 							</Badge>
 							<p class="text-base tabular-nums text-ink-gray-8">
 								{{
