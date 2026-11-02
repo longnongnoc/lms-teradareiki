@@ -19,16 +19,22 @@
 
 		<template #actions>
 			<HeaderButton
+				v-if="isStaff"
 				:route="{ name: 'QuizSubmissions' }"
 				:label="__('Submissions')"
 				icon="lucide-file-check"
 			/>
 			<HeaderButton
+				v-if="isStaff"
 				:route="{ name: 'Questions' }"
 				:label="__('Questions')"
 				icon="lucide-circle-help"
 			/>
-			<Button v-if="!readOnlyMode" variant="solid" @click="createQuiz">
+			<Button
+				v-if="isStaff && !readOnlyMode"
+				variant="solid"
+				@click="createQuiz"
+			>
 				<template #prefix>
 					<span class="lucide-plus size-4" />
 				</template>
@@ -92,12 +98,18 @@ const search = ref('')
 const readOnlyMode = window.read_only_mode
 const quizFilters = ref({})
 
+// Staff manage quizzes here. Learners get the same list, already narrowed by
+// quiz_query_conditions to the quizzes their courses and batches place, and
+// open a quiz to take it rather than to edit it.
+const isStaff = computed(
+	() =>
+		user.data?.is_moderator ||
+		user.data?.is_instructor ||
+		user.data?.is_evaluator
+)
+
 onMounted(() => {
-	if (
-		!user.data?.is_moderator &&
-		!user.data?.is_instructor &&
-		!user.data?.is_evaluator
-	) {
+	if (!user.data) {
 		router.push({ name: 'Courses' })
 	}
 })
@@ -140,9 +152,9 @@ const quizzes = createListResource({
 
 const listOptions = computed(() => ({
 	showTooltip: false,
-	selectable: true,
+	selectable: isStaff.value,
 	getRowRoute: (row) => ({
-		name: 'QuizForm',
+		name: isStaff.value ? 'QuizForm' : 'QuizPage',
 		params: { quizID: row.name },
 	}),
 }))
@@ -180,8 +192,11 @@ const {
 		),
 })
 
+// Authoring settings a learner has no use for.
+const STAFF_ONLY_COLUMNS = ['practical_max_marks', 'show_answers', 'modified']
+
 const quizColumns = computed(() => {
-	return [
+	const columns = [
 		{
 			label: __('Title'),
 			key: 'title',
@@ -244,6 +259,9 @@ const quizColumns = computed(() => {
 			icon: 'lucide-clock',
 		},
 	]
+	return isStaff.value
+		? columns
+		: columns.filter((column) => !STAFF_ONLY_COLUMNS.includes(column.key))
 })
 
 const breadcrumbs = computed(() => {

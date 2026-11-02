@@ -616,8 +616,10 @@ const getSidebarItems = (forMobile = false) => {
 					label: 'Quizzes',
 					icon: 'CircleHelp',
 					to: 'Quizzes',
+					// Learners get it too: the page lists only the quizzes their
+					// courses and batches place (quiz_query_conditions), to take.
 					condition: () => {
-						return !forMobile && isAdmin()
+						return !forMobile && Boolean(userResource?.data)
 					},
 					activeFor: [
 						'Quizzes',
