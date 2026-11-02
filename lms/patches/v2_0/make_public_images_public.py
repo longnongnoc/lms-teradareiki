@@ -91,7 +91,7 @@ def migrate_rows(doctype, fieldname, summary):
 		frappe.db.commit()
 
 
-def publish(url, summary):
+def publish(url, summary, fields=PUBLIC_FILE_FIELDS, since=REGRESSION_START):
 	"""Move the file behind `url` to public/files and return its new URL.
 
 	Returning None means "leave the field alone". Every giving-up path leaves it
@@ -118,11 +118,11 @@ def publish(url, summary):
 		return None
 
 	file = files[0]
-	if getdate(file.creation) < getdate(REGRESSION_START):
+	if since and getdate(file.creation) < getdate(since):
 		summary["left_alone"] += 1
 		return None
 
-	if has_private_sibling(file.name, file.content_hash):
+	if has_private_sibling(file.name, file.content_hash, fields):
 		summary["left_alone"] += 1
 		return None
 
@@ -167,8 +167,8 @@ def log(message):
 	frappe.log_error(title="make_public_images_public", message=f"{message}\n\n{frappe.get_traceback()}")
 
 
-def has_private_sibling(file_name, content_hash):
-	"""True if the same bytes back a file outside PUBLIC_FILE_FIELDS.
+def has_private_sibling(file_name, content_hash, fields=PUBLIC_FILE_FIELDS):
+	"""True if the same bytes back a file outside `fields`.
 
 	File.save() rewrites every File row sharing a content_hash
 	(frappe/core/doctype/file/utils.py update_existing_file_docs), so publishing
@@ -184,7 +184,7 @@ def has_private_sibling(file_name, content_hash):
 	)
 
 	return any(
-		(sibling.attached_to_doctype, sibling.attached_to_field) not in PUBLIC_FILE_FIELDS
+		(sibling.attached_to_doctype, sibling.attached_to_field) not in fields
 		for sibling in siblings
 		if sibling.attached_to_doctype
 	)
