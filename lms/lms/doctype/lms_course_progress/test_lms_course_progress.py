@@ -63,3 +63,13 @@ class TestLMSCourseProgress(BaseTestUtils):
 
 		self.enrollment.reload()
 		self.assertEqual(self.enrollment.progress, 25)
+
+	def test_lesson_outside_outline_is_not_counted(self):
+		"""A completion on a lesson left out of the outline must not push progress past 100"""
+		chapter = frappe.db.get_value("Course Lesson", self.lessons[0].name, "chapter")
+		orphan = self._create_lesson("Orphan Lesson", chapter, self.course.name)
+		for lesson in [*self.lessons, orphan]:
+			self._create_lesson_progress(self.student.email, self.course.name, lesson.name)
+
+		self.enrollment.reload()
+		self.assertEqual(self.enrollment.progress, 100)

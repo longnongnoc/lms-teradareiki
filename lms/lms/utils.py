@@ -451,15 +451,26 @@ def get_progress(course: str, lesson: str, member: str = None):
 
 def get_course_progress(course: str, member: str = None):
 	"""Returns the course progress of the session user"""
-	lesson_count = get_lesson_count(course)
-	if not lesson_count:
+	chapters = frappe.get_all("Chapter Reference", {"parent": course}, pluck="chapter")
+	lessons = chapters and frappe.get_all("Lesson Reference", {"parent": ("in", chapters)}, pluck="lesson")
+	if not lessons:
 		return 0
-	completed_lessons = frappe.db.count(
-		"LMS Course Progress",
-		{"course": course, "member": member or frappe.session.user, "status": "Complete"},
+	# Only lessons still in the outline count: a completion left on a lesson that was
+	# taken out of the outline pushed the percentage past 100.
+	completed_lessons = set(
+		frappe.get_all(
+			"LMS Course Progress",
+			{
+				"course": course,
+				"member": member or frappe.session.user,
+				"status": "Complete",
+				"lesson": ("in", lessons),
+			},
+			pluck="lesson",
+		)
 	)
 	precision = cint(frappe.db.get_default("float_precision")) or 3
-	return flt(((completed_lessons / lesson_count) * 100), precision)
+	return flt(((len(completed_lessons) / len(lessons)) * 100), precision)
 
 
 def is_instructor(course: str) -> bool:
