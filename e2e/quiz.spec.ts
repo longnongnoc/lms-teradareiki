@@ -1,6 +1,7 @@
 import { test, expect } from "./fixtures";
 import { button, deleteLeftovers } from "./helpers";
 import { authFile, baseURL } from "./config";
+import { resultMarks } from "./quizHelpers";
 import type { Browser, Page } from "@playwright/test";
 
 let quizName: string;
@@ -196,7 +197,7 @@ test.describe("Quiz", () => {
 			await expect(page.getByTestId("quiz-verdict")).toBeVisible({
 				timeout: 10000,
 			});
-			await expect(page.getByText(/of \d+ marks/)).toBeVisible();
+			await expect(resultMarks(page)).toContainText(/of \d+ marks/);
 		});
 
 		// LMS Quiz refuses to delete while a submission links to it

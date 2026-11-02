@@ -165,6 +165,10 @@ class TestNormalizeAnswer(FillBlankTestCase):
 		assert _same("a~b", "ab")
 		assert _same("(a)[b]", "ab")
 
+	def test_other_japanese_brackets_and_wave_dash_are_ignored(self):
+		for marked in ("『冷凍』", "〈冷凍〉", "《冷凍》", "〔冷凍〕", "冷〜凍"):
+			assert _same(marked, "冷凍"), marked
+
 	def test_dash_variants_are_ignored(self):
 		for dash in ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2015", "\u2212", "\ufe63"):
 			assert normalize_answer(f"R{dash}410A") == "r410a"
@@ -337,6 +341,13 @@ class TestGradeFillBlank(FillBlankTestCase):
 		assert _grade_one("50°C", "50℃")
 		assert _grade_one("φ10", "φ10")
 		assert _grade_one("φ10", "Φ10")
+
+	def test_phi_symbol_matches_phi(self):
+		# U+03D5 GREEK PHI SYMBOL folds to U+03C6 under NFKC, and U+03A6 to it under casefold.
+		assert normalize_answer("ϕ10") == normalize_answer("φ10") == "φ10"
+		assert _grade_one("φ10", "ϕ10")
+		assert _grade_one("ϕ10", "Φ10")
+		assert _grade_one("φ10", "ϕ１０")
 
 	def test_partial_credit_with_three_blanks(self):
 		blanks = [_blank("1", "圧縮機", 2), _blank("2", "凝縮器\ncondenser", 3), _blank("3", "50°C", 5)]

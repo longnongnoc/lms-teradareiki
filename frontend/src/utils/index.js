@@ -1052,7 +1052,10 @@ export const highlightText = (note, scrollIntoView = false) => {
 	// Saving a highlight draws it and then reloads the notes, which draws every
 	// note again; without this the same spans nest inside each other.
 	const drawn = root.querySelectorAll('.highlighted-text')
-	if (note.name && Array.from(drawn).some((el) => el.dataset.name === note.name))
+	if (
+		note.name &&
+		Array.from(drawn).some((el) => el.dataset.name === note.name)
+	)
 		return
 
 	const phrase = note.highlighted_text

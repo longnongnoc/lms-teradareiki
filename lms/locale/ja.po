@@ -51910,3 +51910,31 @@ msgstr "提出後に空欄ごとの正誤を表示"
 #: frontend/src/pages/Forms/QuizForm.vue
 msgid "Accepted answers are shown only when Show Answers is on."
 msgstr "正解は「解答を表示」がオンの場合のみ表示されます。"
+
+#: frontend/src/components/Quiz.vue
+msgid "Score out of"
+msgstr "満点"
+
+#: frontend/src/components/Quiz.vue
+msgid "Your answers"
+msgstr "あなたの解答"
+
+#: frontend/src/components/Quiz.vue
+msgid "Your answer:"
+msgstr "あなたの解答:"
+
+#: frontend/src/pages/QuizSubmission.vue
+msgid "Correct answer:"
+msgstr "正解:"
+
+#: lms/lms/quiz_results.py
+msgid "You are not permitted to view this submission."
+msgstr "この提出内容を閲覧する権限がありません。"
+
+#: lms/lms/quiz_results.py
+msgid "submission"
+msgstr "提出"
+
+#: frontend/src/pages/QuizSubmission.vue
+msgid "The answers are not shown for this quiz."
+msgstr "このクイズでは解答は表示されません。"

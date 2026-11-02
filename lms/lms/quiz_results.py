@@ -7,6 +7,12 @@ import frappe
 from frappe import _
 from frappe.utils import cint
 
+from lms.lms.doctype.lms_question.lms_question import QUESTION_POSSIBILITY_FIELDS
+from lms.lms.doctype.lms_quiz.lms_quiz import (
+	get_fill_blanks,
+	get_option_keys_and_flags,
+	get_question_details,
+)
 from lms.lms.permissions import can_review_submission, is_site_administrator
 from lms.lms.quiz_scoring import (
 	MAX_PRACTICAL_MARKS,
@@ -214,6 +220,65 @@ def get_quiz_result_summary(quiz: str, member: str | None = None):
 
 	show_history = staff or bool(_quiz_settings(quiz).show_submission_history)
 	return _build_summary(quiz, member, with_attempts=True, show_attempts=show_history)
+
+
+def _correct_answer(question: str, question_type: str):
+	"""The answer key of one question, shaped like its stored answer: option keys or accepted
+	answers joined with ", ", or {blank_id: [accepted answers]} for Fill Blank. None for an
+	Open Ended question, which has no key."""
+	if question_type == "Choices":
+		keys, flags = get_option_keys_and_flags(get_question_details(question))
+		return ", ".join(key for key, flag in zip(keys, flags, strict=True) if key and flag)
+	if question_type == "User Input":
+		values = frappe.db.get_value("LMS Question", question, QUESTION_POSSIBILITY_FIELDS, as_dict=True)
+		return ", ".join(values[field] for field in QUESTION_POSSIBILITY_FIELDS if values and values[field])
+	if question_type == "Fill Blank":
+		return {
+			blank.blank_id: [line.strip() for line in str(blank.answers or "").splitlines() if line.strip()]
+			for blank in get_fill_blanks(question)
+		}
+	return None
+
+
+@frappe.whitelist()
+def get_submission_answers(submission: str):
+	"""Each question of one submission, in order: the question, the member's answer, the marks
+	and, when the caller may see it, the correct answer.
+
+	The member reads their own submission; staff who may review the member on the quiz read
+	anyone's. The correct answer (`correct_answer` on each row) is only sent to staff who
+	may review the member, or to the member when the quiz has Show Answers on. A member who
+	does not review the quiz gets no questions when it has Show Answer Review off."""
+	user = frappe.session.user
+	if not user or user == "Guest":
+		frappe.throw(_("Please log in."), frappe.PermissionError)
+	_require_text(submission, _("submission"))
+	row = frappe.db.get_value("LMS Quiz Submission", submission, ["quiz", "member"], as_dict=True)
+	if not row:
+		frappe.throw(_("Invalid submission."), frappe.ValidationError)
+
+	# Staff on their own submission of a quiz they do not review read it as a learner.
+	reviewer = _is_staff() and _can_review(row.quiz, row.member)
+	if row.member != user and not reviewer:
+		frappe.throw(_("You are not permitted to view this submission."), frappe.PermissionError)
+	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
+	reveal = reviewer or bool(cint(quiz.show_answers))
+	result = {"submission": submission, "quiz": row.quiz, "member": row.member}
+	# As in get_fill_blank_review: with Show Answer Review off the member gets no review.
+	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+		return {**result, "show_correct_answers": False, "questions": []}
+
+	questions = frappe.get_all(
+		"LMS Quiz Result",
+		filters={"parent": submission, "parenttype": "LMS Quiz Submission", "parentfield": "result"},
+		fields=["name", "question_name", "question", "question_type", "answer", "marks", "marks_out_of"],
+		order_by="idx asc",
+	)
+	for question in questions:
+		if reveal:
+			question["correct_answer"] = _correct_answer(question.question_name, question.question_type)
+
+	return {**result, "show_correct_answers": reveal, "questions": questions}
 
 
 def _like(term: str) -> str:
