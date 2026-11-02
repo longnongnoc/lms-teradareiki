@@ -84,10 +84,10 @@ describe('QuestionAnswers image controls', () => {
 		wrapper.unmount()
 	})
 
-	it('uploads private and offers only jpeg, png and webp', async () => {
+	it('uploads public and offers only jpeg, png and webp', async () => {
 		const { wrapper } = await mountAnswers()
 		const uploader = wrapper.get('[data-testid="uploader"]')
-		expect(uploader.attributes('data-private')).toBe('true')
+		expect(uploader.attributes('data-private')).toBe('false')
 		expect(uploader.attributes('data-types')).toBe(
 			'image/jpeg,image/png,image/webp'
 		)
