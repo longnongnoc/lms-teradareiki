@@ -53,6 +53,14 @@ vi.mock('vuedraggable', () => ({
 
 vi.stubGlobal('__', (s: string) => s)
 
+// frappe's translation layer patches String.prototype.format onto the page at
+// runtime; the quiz stats line uses it. Same shim as assignmentsCount.test.ts.
+String.prototype.format = function (this: string, ...args: unknown[]): string {
+	return this.replace(/{(\d+)}/g, (match, index) =>
+		args[Number(index)] === undefined ? match : String(args[Number(index)])
+	)
+}
+
 const chapter: OutlineChapter = {
 	name: 'CH-2',
 	title: 'Old Chapter',
@@ -313,6 +321,39 @@ describe('ChapterRow draft lesson', () => {
 	it('shows nothing for a draft in another chapter', () => {
 		const wrapper = mountInline('1-new')
 		expect(wrapper.find('[data-testid="outline-draft-lesson"]').exists()).toBe(
+			false
+		)
+	})
+})
+
+describe('ChapterRow quiz stats', () => {
+	const withStats = (quiz_stats?: { questions: number; marks: number }) =>
+		mountRow(
+			{
+				...chapter,
+				// The first chapter starts open, so its lessons render.
+				idx: 1,
+				lessons: [{ name: 'LESSON-1', title: 'Test', number: '2-1', quiz_stats }],
+			},
+			false
+		)
+
+	it('shows the question count and total marks of a lesson test', () => {
+		const wrapper = withStats({ questions: 3, marks: 15 })
+		expect(wrapper.get('[data-testid="outline-quiz-stats"]').text()).toBe(
+			'3 questions · 15 marks'
+		)
+	})
+
+	it('uses the singular for one question and one mark', () => {
+		const wrapper = withStats({ questions: 1, marks: 1 })
+		expect(wrapper.get('[data-testid="outline-quiz-stats"]').text()).toBe(
+			'1 question · 1 mark'
+		)
+	})
+
+	it('shows nothing for a lesson without a test', () => {
+		expect(withStats().find('[data-testid="outline-quiz-stats"]').exists()).toBe(
 			false
 		)
 	})

@@ -50,6 +50,7 @@
 				:duration="quizSummary.duration"
 				:passingPercentage="details.doc.passing_percentage"
 				:maxAttempts="details.doc.max_attempts || null"
+				:totalMarks="details.doc.total_marks || null"
 			/>
 			<div class="flex justify-end">
 				<Button variant="solid" disabled>{{ __('Start Quiz') }}</Button>

@@ -92,6 +92,8 @@ export interface OutlineLesson {
 	icon?: string
 	is_complete?: boolean
 	locked?: 0 | 1
+	// Summed over the lesson's quizzes, absent when it has none.
+	quiz_stats?: { questions: number; marks: number }
 }
 
 export interface OutlineChapter {

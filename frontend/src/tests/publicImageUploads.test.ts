@@ -294,6 +294,9 @@ const MANIFEST: Record<string, Privacy[]> = {
 	'components/Modals/EditCoverImage.vue': ['public'],
 	'components/UnsplashImageBrowser.vue': ['public'],
 	'components/Courses/CourseThumbnailField.vue': ['public', 'public'],
+	// Quiz instructions are read by learners on the intro, outside any gated
+	// question endpoint, so their images upload public.
+	'pages/Forms/QuizForm.vue': ['public'],
 	// Deliberately not readable by other users.
 	'components/Assignment.vue': ['private', 'private', 'private'],
 	'components/Modals/JobApplicationModal.vue': ['private'],

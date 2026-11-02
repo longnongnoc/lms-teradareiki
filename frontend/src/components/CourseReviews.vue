@@ -58,6 +58,18 @@
 							{{ formatReviewDate(review.creation) }}
 						</span>
 					</div>
+					<div
+						v-if="isOwnReview(review)"
+						data-testid="own-review-actions"
+						class="flex gap-2 mt-2"
+					>
+						<Button size="sm" @click="openReviewModal(review)">
+							{{ __('Edit') }}
+						</Button>
+						<Button size="sm" theme="red" @click="confirmDelete(review)">
+							{{ __('Delete') }}
+						</Button>
+					</div>
 					<div class="flex gap-1 mt-2">
 						<LucideStar
 							v-for="i in 5"
@@ -103,15 +115,18 @@
 		v-model:reloadReviews="reviews"
 		v-model:hasReviewed="hasReviewed"
 		:courseName="courseName"
+		:editing="editingReview"
 	/>
 </template>
 
 <script setup lang="ts">
-import { createResource, Button } from 'frappe-ui'
+import { createResource, Button, toast } from 'frappe-ui'
 import { computed, inject, reactive, ref, watch } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { formatRating } from '@/utils'
 import ReviewModal from '@/components/Modals/ReviewModal.vue'
+import { createDialog } from '@/utils/dialogs'
+import { resourceErrorMessage, submitResource } from '@/utils/resource'
 import type dayjsType from 'dayjs'
 import type {
 	CourseReviewInfo,
@@ -207,7 +222,52 @@ function formatReviewDate(date: string) {
 	return __('Today')
 }
 
-function openReviewModal() {
+const editingReview = ref<CourseReviewInfo | null>(null)
+
+// get_reviews keeps `owner` only on the caller's own review (hide_user_emails).
+function isOwnReview(review: CourseReviewInfo & { owner?: string }) {
+	return Boolean(user.data?.name) && review.owner === user.data?.name
+}
+
+function openReviewModal(review: CourseReviewInfo | null = null) {
+	editingReview.value = review
 	showReviewModal.value = true
+}
+
+const deleteReview = createResource({
+	url: 'frappe.client.delete',
+	makeParams(values: { name: string }) {
+		return { doctype: 'LMS Course Review', name: values.name }
+	},
+})
+
+function confirmDelete(review: CourseReviewInfo) {
+	createDialog({
+		title: __('Delete this review?'),
+		message: __('This cannot be undone.'),
+		actions: [
+			{
+				label: __('Delete'),
+				theme: 'red',
+				variant: 'solid',
+				onClick({ close }: { close: () => void }) {
+					submitResource(
+						deleteReview,
+						{ name: review.name },
+						{
+							onSuccess() {
+								reviews.reload()
+								hasReviewed.reload()
+								close()
+							},
+							onError(err: unknown) {
+								toast.error(resourceErrorMessage(err, 'Error'))
+							},
+						}
+					)
+				},
+			},
+		],
+	})
 }
 </script>

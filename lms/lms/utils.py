@@ -402,7 +402,7 @@ def _course_reviews(course: str) -> list:
 	reviews = frappe.get_all(
 		"LMS Course Review",
 		{"course": course},
-		["review", "rating", "owner", "creation"],
+		["name", "review", "rating", "owner", "creation"],
 		order_by="creation desc",
 	)
 
@@ -1723,7 +1723,58 @@ def get_course_outline(course: str, progress: bool = False) -> list:
 
 	enforce = enforces_lesson_completion(course) if progress else False
 
-	return build_outline(chapters, lesson_rows, files_by_name, completed, progress, enforce)
+	outline = build_outline(chapters, lesson_rows, files_by_name, completed, progress, enforce)
+	stats = get_outline_quiz_stats([lr.name for lr in lesson_rows])
+	for chapter in outline:
+		for lesson in chapter.lessons:
+			if lesson.name in stats:
+				lesson.quiz_stats = stats[lesson.name]
+	return outline
+
+
+def get_outline_quiz_stats(lesson_names: list) -> dict:
+	"""{lesson: {questions, marks}} summed over the quizzes a learner meets in each lesson,
+	so the outline can say what a test holds before it is opened. A quiz placed for
+	instructors only is left out."""
+	if not lesson_names:
+		return {}
+	LessonAssessment = frappe.qb.DocType("LMS Lesson Assessment")
+	placements = (
+		frappe.qb.from_(LessonAssessment)
+		.select(LessonAssessment.parent, LessonAssessment.assessment_name)
+		.where(LessonAssessment.parenttype == "Course Lesson")
+		.where(LessonAssessment.parent.isin(lesson_names))
+		.where(LessonAssessment.assessment_type == "LMS Quiz")
+		.where(LessonAssessment.instructor_only == 0)
+	).run(as_dict=True)
+	quiz_names = list({p.assessment_name for p in placements if p.assessment_name})
+	if not quiz_names:
+		return {}
+
+	Quiz = frappe.qb.DocType("LMS Quiz")
+	marks = dict(
+		(frappe.qb.from_(Quiz).select(Quiz.name, Quiz.total_marks).where(Quiz.name.isin(quiz_names))).run()
+	)
+	QuizQuestion = frappe.qb.DocType("LMS Quiz Question")
+	counts = dict(
+		(
+			frappe.qb.from_(QuizQuestion)
+			.select(QuizQuestion.parent, fn.Count(QuizQuestion.name))
+			.where(QuizQuestion.parenttype == "LMS Quiz")
+			.where(QuizQuestion.parent.isin(quiz_names))
+			.groupby(QuizQuestion.parent)
+		).run()
+	)
+
+	stats = {}
+	for p in placements:
+		# A placement can outlive its quiz; the outline must not fail on it.
+		if p.assessment_name not in marks:
+			continue
+		lesson = stats.setdefault(p.parent, {"questions": 0, "marks": 0})
+		lesson["questions"] += counts.get(p.assessment_name, 0)
+		lesson["marks"] += flt(marks[p.assessment_name])
+	return stats
 
 
 def can_view_course(course: str) -> bool:

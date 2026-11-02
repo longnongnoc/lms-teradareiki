@@ -518,6 +518,7 @@
 			"read",
 			"write",
 			"create",
+			"delete",
 			"share",
 			"report",
 			"export"

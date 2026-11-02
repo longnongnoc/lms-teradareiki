@@ -84,6 +84,7 @@
 						:duration="quiz.data.duration"
 						:passingPercentage="quiz.data.passing_percentage"
 						:attemptsLeft="attemptsLeft"
+						:totalMarks="quiz.data.total_marks || null"
 					/>
 					<QuizResultSummary v-if="!preview" :quiz="quiz.data.name" />
 
@@ -119,6 +120,20 @@
 							}}
 						</span>
 					</div>
+				</div>
+
+				<div
+					v-if="hasInstructions"
+					data-testid="quiz-instructions"
+					class="space-y-2 border-b border-outline-gray-1 p-3.5"
+				>
+					<div class="text-sm text-ink-gray-6">
+						{{ __('Instructions') }}
+					</div>
+					<div
+						v-safe-html:rich="quiz.data.instructions"
+						class="ProseMirror prose prose-table:table-fixed prose-td:p-2 prose-th:p-2 prose-td:border prose-th:border prose-td:border-outline-gray-2 prose-th:border-outline-gray-2 prose-th:bg-surface-gray-2 prose-sm max-w-none !whitespace-normal"
+					></div>
 				</div>
 
 				<div
@@ -840,23 +855,6 @@
 				</button>
 			</div>
 		</div>
-
-		<div
-			v-if="
-				quiz.data.show_submission_history &&
-				attempts?.data &&
-				attempts.data.length > 0
-			"
-			class="mt-10"
-		>
-			<ResponsiveListView
-				:columns="getSubmissionColumns()"
-				:rows="attempts.data ?? []"
-				row-key="name"
-				title-key="creation"
-				:options="getSubmissionOptions()"
-			/>
-		</div>
 	</div>
 	<Dialog
 		v-model:open="showSubmissionConfirmation"
@@ -998,14 +996,12 @@ import {
 	useId,
 	watch,
 } from 'vue'
-import { timeAgo } from '@/utils/format'
 import { violationLabel } from '@/utils/proctoring'
 import {
 	formatScheduleDate,
 	useAssessmentSchedule,
 } from '@/composables/useAssessmentSchedule'
 import { markLessonProgress } from '@/utils/markLessonProgress'
-import ResponsiveListView from '@/components/ResponsiveListView.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import router from '@/router'
 import QuizActivityLog from '@/components/Quiz/QuizActivityLog.vue'
@@ -1031,6 +1027,7 @@ import {
 } from '@/utils/submissionAnswers'
 import type { SubmissionAnswers } from '@/utils/submissionAnswers'
 import { safeUrl } from '@/utils/safeUrl'
+import { htmlToText } from '@/utils/inertHtml'
 import {
 	isOptionPresent,
 	optionImage,
@@ -1381,6 +1378,12 @@ const quizSubtitle = computed(() =>
 	)
 )
 
+// An emptied editor still saves "<p></p>", which must not draw an empty box.
+const hasInstructions = computed(() => {
+	const html = quiz.data?.instructions || ''
+	return !!htmlToText(html) || /<(img|iframe|video)\b/i.test(html)
+})
+
 const introTips = computed(() => {
 	if (!quiz.data) return []
 	const proctored = quiz.data.enable_proctoring
@@ -1498,12 +1501,6 @@ const attempts = createResource<QuizAttempt[]>({
 			],
 			order_by: 'creation desc',
 		}
-	},
-	transform(data: QuizAttempt[]) {
-		data.forEach((submission, index) => {
-			submission.creation = timeAgo(submission.creation)
-			submission.idx = index + 1
-		})
 	},
 })
 
@@ -2337,47 +2334,6 @@ const markForReview = (checked: boolean, questionNumber: number): void => {
 		reviewQuestions.value = reviewQuestions.value.filter(
 			(num) => num !== questionNumber
 		)
-	}
-}
-
-const getSubmissionColumns = () => {
-	return [
-		{
-			label: __('No.'),
-			key: 'idx',
-			width: 1,
-		},
-		{
-			label: __('Date'),
-			key: 'creation',
-			width: 2,
-		},
-		{
-			label: __('Score'),
-			key: 'score',
-			align: 'left',
-			width: 1,
-		},
-		{
-			label: __('Score out of'),
-			key: 'score_out_of',
-			align: 'left',
-			width: 1,
-		},
-		{
-			label: __('Percentage'),
-			key: 'percentage',
-			align: 'left',
-			width: 1,
-		},
-	]
-}
-
-const getSubmissionOptions = () => {
-	return {
-		selectable: false,
-		showTooltip: false,
-		emptyState: { title: __('No Quiz submissions found') },
 	}
 }
 </script>

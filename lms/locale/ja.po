@@ -51911,6 +51911,105 @@ msgstr "提出後に空欄ごとの正誤を表示"
 msgid "Accepted answers are shown only when Show Answers is on."
 msgstr "正解は「解答を表示」がオンの場合のみ表示されます。"
 
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Deleting this quiz permanently removes it. Its questions stay in the question bank. A quiz that already has submissions or practical scores cannot be deleted. This action cannot be undone. Are you sure you want to continue?"
+msgstr "このクイズを完全に削除します。問題は問題バンクに残ります。提出物または実技点がすでにあるクイズは削除できません。この操作は元に戻せません。続行してもよろしいですか？"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "This quiz cannot be deleted because it already has submissions or practical scores. Nothing was deleted."
+msgstr "このクイズには提出物または実技点がすでにあるため削除できません。何も削除されていません。"
+
+#: frontend/src/pages/Forms/QuizForm.vue
+msgid "Shown to learners before they start the quiz"
+msgstr "受講者がクイズを開始する前に表示されます"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Import tests from JSON"
+msgstr "JSONからテストをインポート"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Choose a .json file. It is checked first, and nothing is written until you confirm."
+msgstr ".jsonファイルを選択してください。まず内容を確認し、確定するまで何も書き込まれません。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "JSON file"
+msgstr "JSONファイル"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Checking file…"
+msgstr "ファイルを確認しています…"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Some tests could not be imported."
+msgstr "一部のテストをインポートできませんでした。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "The file has errors. Nothing was imported."
+msgstr "ファイルにエラーがあります。何もインポートされていません。"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "{0} questions"
+msgstr "{0}問"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Warnings"
+msgstr "警告"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Confirm import"
+msgstr "インポートを確定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Will be created"
+msgstr "作成予定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Will be updated"
+msgstr "更新予定"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Could not check the file"
+msgstr "ファイルを確認できませんでした"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "{0} tests imported"
+msgstr "{0}件のテストをインポートしました"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Could not import the tests"
+msgstr "テストをインポートできませんでした"
+
+#: frontend/src/utils/quizDuplicate.ts
+msgid "Quiz duplicated"
+msgstr "クイズを複製しました"
+
+#: frontend/src/utils/quizDuplicate.ts
+msgid "Could not duplicate the quiz"
+msgstr "クイズを複製できませんでした"
+
+#: lms/lms/doctype/lms_quiz/lms_quiz.py
+msgid "You are not allowed to duplicate this quiz."
+msgstr "このクイズを複製する権限がありません。"
+
+#: frontend/src/components/Assessment/QuizStats.vue
+msgid "Total marks"
+msgstr "満点"
+
+#: lms/lms/doctype/lms_quiz/lms_quiz.py
+msgid "{0} (Copy {1})"
+msgstr "{0} (コピー {1})"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "1 test imported"
+msgstr "1件のテストをインポートしました"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "Importing…"
+msgstr "インポートしています…"
+
+#: frontend/src/components/Quiz/QuizImportDialog.vue
+msgid "1 question"
+msgstr "1問"
 #: frontend/src/components/Quiz.vue
 msgid "Score out of"
 msgstr "満点"
@@ -51938,3 +52037,15 @@ msgstr "提出"
 #: frontend/src/pages/QuizSubmission.vue
 msgid "The answers are not shown for this quiz."
 msgstr "このクイズでは解答は表示されません。"
+
+#: frontend/src/components/Modals/ReviewModal.vue
+msgid "Edit Review"
+msgstr "レビューを編集"
+
+#: frontend/src/components/CourseReviews.vue
+msgid "Delete this review?"
+msgstr "このレビューを削除しますか？"
+
+#: frontend/src/components/CourseReviews.vue
+msgid "This cannot be undone."
+msgstr "この操作は元に戻せません。"

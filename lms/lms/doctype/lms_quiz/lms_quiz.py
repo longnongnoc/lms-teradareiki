@@ -42,7 +42,6 @@ from lms.lms.fill_blank import apply_negative_marking, grade_fill_blank, parse_s
 from lms.lms.question_media import choice_answer_flags, is_choice_answer_correct, option_keys
 from lms.lms.schedule_utils import assert_within_schedule, validate_schedule_fields
 from lms.lms.utils import (
-	PRIVILEGED_ROLES,
 	generate_slug,
 	has_course_instructor_role,
 	has_moderator_role,
@@ -188,6 +187,48 @@ class LMSQuiz(AuthoredDocument, Document):
 
 		if result:
 			return result[0]
+
+
+@frappe.whitelist(methods=["POST"])
+def duplicate_quiz(quiz: str) -> str:
+	"""Copy a quiz's settings and question rows into a new quiz, returning its name.
+
+	The rows point at the same LMS Question docs, as a question added from the bank
+	does. Submissions and practical scores link to the quiz and are not copied.
+	Write on the source, not read: a learner or a placing instructor can read a quiz,
+	and a copy they author would hand them its answer key.
+	"""
+	if not isinstance(quiz, str) or not frappe.db.exists("LMS Quiz", quiz):
+		frappe.throw(_("Invalid quiz."), frappe.ValidationError)
+
+	source = frappe.get_doc("LMS Quiz", quiz)
+	if not (frappe.has_permission("LMS Quiz", "create") and source.has_permission("write")):
+		frappe.throw(_("You are not allowed to duplicate this quiz."), frappe.PermissionError)
+
+	copy = frappe.copy_doc(source)
+	copy.title = copy_title(source.title)
+	# The copy is the duplicator's, and sits in no lesson until someone places it.
+	copy.set("authors", [])
+	copy.lesson = None
+	copy.course = None
+	copy.insert()
+	return copy.name
+
+
+def copy_title(title: str) -> str:
+	"""The first of "X (Copy)", "X (Copy 2)", ... that no quiz has, cut to fit the title field.
+
+	The base is shortened, not the suffix, so a long title still reads as a copy.
+	"""
+	limit = frappe.get_meta("LMS Quiz").get_field("title").length or 140
+	count = 1
+	while True:
+		pattern = _("{0} (Copy)") if count == 1 else _("{0} (Copy {1})")
+		room = limit - len(pattern.format("", count))
+		candidate = pattern.format(title[:room].rstrip(), count)
+		if not frappe.db.exists("LMS Quiz", {"title": candidate}):
+			return candidate
+		count += 1
 
 
 def set_total_marks(questions: list) -> int:
@@ -891,10 +932,11 @@ def get_fill_blanks(question: str) -> list[dict]:
 def get_fill_blank_review(submission: str):
 	"""Per-blank results of every Fill Blank answer in a submission, keyed by question name.
 
-	The accepted answers are only included for a viewer who may see the answer key: a
-	privileged role, or a quiz that reveals answers (show_answers). Anyone else gets each
-	blank's own answer, is_correct and marks. A learner gets nothing when the quiz has
-	Show Answer Review off; staff always get the review.
+	The accepted answers are only included for a viewer who may see the answer key: staff
+	who may review the member on the quiz, or anyone when the quiz reveals answers
+	(show_answers). Anyone else gets each blank's own answer, is_correct and marks. A
+	viewer who does not review the quiz gets nothing when it has Show Answer Review off,
+	as in lms.lms.quiz_results.get_submission_answers.
 	"""
 	if not isinstance(submission, str):
 		frappe.throw(_("Invalid submission."), frappe.ValidationError)
@@ -907,13 +949,17 @@ def get_fill_blank_review(submission: str):
 	):
 		frappe.throw(_("Insufficient Permission"), frappe.PermissionError)
 
+	# Imported here: quiz_results imports from this module.
+	from lms.lms.quiz_results import _can_review, _is_staff
+
 	quiz = frappe.db.get_value("LMS Quiz", row.quiz, ["show_answers", "show_answer_review"], as_dict=True)
-	privileged = bool(PRIVILEGED_ROLES & set(frappe.get_roles()))
-	# Anyone past the own-submission check who is not the member is reading it as staff.
-	is_staff = privileged or row.member != frappe.session.user
-	if not is_staff and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
+	# Someone else's submission is only reachable with read permission (checked above), so its
+	# reader reviews it. Staff on their own submission of a quiz they do not review read it
+	# as a learner.
+	reviewer = row.member != frappe.session.user or (_is_staff() and _can_review(row.quiz, row.member))
+	if not reviewer and quiz.show_answer_review is not None and not cint(quiz.show_answer_review):
 		return {}
-	reveal = privileged or bool(quiz.show_answers)
+	reveal = reviewer or bool(cint(quiz.show_answers))
 
 	result_rows = frappe.get_all(
 		"LMS Quiz Result",

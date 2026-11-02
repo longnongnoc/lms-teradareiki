@@ -51,8 +51,11 @@ def _flag(value) -> bool:
 	return bool(value)
 
 
+# nosemgrep: frappe-test-whitelist-missing-protection - "tests" are quizzes; only_for gates it
 @frappe.whitelist()
-def import_tests(data: str | dict, dry_run=True, update_existing=False):
+def import_tests(
+	data: str | dict, dry_run: bool | int | str = True, update_existing: bool | int | str = False
+):
 	frappe.only_for(ALLOWED_ROLES)
 	dry_run = _flag(dry_run)
 	update_existing = _flag(update_existing)

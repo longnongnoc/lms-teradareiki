@@ -214,6 +214,17 @@ watch(
 	}
 )
 
+// The edit form opens over this page as App.vue's background, but the form's
+// router-view mounts a Profile of its own, and that copy is the one the save
+// reloads. Once the form closes this copy is on screen again, so refetch here
+// or the heading keeps the old name until F5.
+watch(
+	() => route.name,
+	(name, previous) => {
+		if (previous === 'ProfileEditForm' && name !== previous) profile.reload()
+	}
+)
+
 const editProfile = () => {
 	openFormRoute(router, {
 		name: 'ProfileEditForm',
