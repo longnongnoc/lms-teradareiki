@@ -16,6 +16,18 @@ declare module '@editorjs/header' {
 	export interface HeaderApi {
 		styles: { block: string }
 		i18n: { t: (text: string) => string }
+		// Only Heading's Enter fallback reads these; tests may leave them out.
+		blocks?: {
+			getCurrentBlockIndex(): number
+			insert(
+				type?: string,
+				data?: object,
+				config?: object,
+				index?: number,
+				needToFocus?: boolean
+			): unknown
+		}
+		caret?: { setToBlock(index: number): boolean }
 	}
 
 	export default class Header {

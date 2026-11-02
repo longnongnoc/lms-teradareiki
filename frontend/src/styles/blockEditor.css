@@ -437,3 +437,27 @@ code.inline-code {
 	font-weight: 500;
 	letter-spacing: normal;
 }
+
+/* Section headings look the same however they were made (+ menu, "/", "## ",
+   convert, paste). The PDF-built lessons carry this look as an inline-styled
+   <span>, which the editor never produces and paste strips, so a heading a
+   teacher adds would otherwise be plain bold body text. Headings that still
+   carry their own styled span keep it, rather than getting a second border. */
+h2.ce-header:not(:has(> span[style])) {
+	margin-top: 30px;
+	padding: 8px 0 8px 14px;
+	border-left: 6px solid var(--outline-gray-5);
+	border-bottom: 2px solid var(--outline-gray-3);
+	font-size: 26px;
+	font-weight: 700;
+	line-height: 1.4;
+}
+
+h3.ce-header:not(:has(> span[style])) {
+	margin-top: 16px;
+	padding: 0 0 0 10px;
+	border-left: 4px solid var(--outline-gray-5);
+	font-size: 19px;
+	font-weight: 700;
+	line-height: 1.5;
+}

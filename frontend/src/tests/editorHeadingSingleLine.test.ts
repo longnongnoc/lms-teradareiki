@@ -61,6 +61,43 @@ describe('Heading: single line', () => {
 		expect(press(element, 'Enter').defaultPrevented).toBe(false)
 	})
 
+	// EditorJS skips Enter right after a heading is picked from the + menu.
+	// With nothing else handling it, the heading opens the next block itself.
+	it.each([
+		['EditorJS skips Enter', false, 1],
+		['EditorJS handles Enter', true, 0],
+	])('splits after an unhandled Enter (%s)', (_, editorHandles, inserts) => {
+		const insert = vi.fn()
+		const setToBlock = vi.fn(() => true)
+		const heading = new Heading({
+			data: { text: 'Title', level: 2 },
+			api: {
+				i18n: { t: (text: string): string => text },
+				styles: { block: 'cdx-block' },
+				blocks: { getCurrentBlockIndex: () => 3, insert },
+				caret: { setToBlock },
+			},
+			config: {},
+			readOnly: false,
+		})
+		const holder = document.createElement('div')
+		if (editorHandles) {
+			holder.addEventListener('keydown', (event) => event.preventDefault())
+		}
+		holder.appendChild(heading.render())
+		document.body.appendChild(holder)
+
+		const event = press(holder.firstElementChild as HTMLElement, 'Enter')
+		holder.remove()
+
+		expect(insert).toHaveBeenCalledTimes(inserts)
+		if (inserts) {
+			expect(insert).toHaveBeenCalledWith(undefined, undefined, undefined, 4, true)
+			expect(setToBlock).toHaveBeenCalledWith(4)
+			expect(event.defaultPrevented).toBe(true)
+		}
+	})
+
 	it('keeps refusing breaks after the heading level changes', () => {
 		const heading = newHeading({ text: 'Title', level: 2 })
 		// The level tunes replace the element, so the guard has to come with it.
