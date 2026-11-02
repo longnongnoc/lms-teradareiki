@@ -57,7 +57,7 @@
 							/>
 							<FileUploader
 								:fileTypes="OPTION_IMAGE_TYPES"
-								:private="true"
+								:private="false"
 								:validateFile="validateImage"
 								@success="(file) => setImage(n, file.file_url)"
 								@failure="onImageFailure"

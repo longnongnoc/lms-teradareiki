@@ -104,6 +104,7 @@
 					:editable="true"
 					:fixedMenu="true"
 					:imageFrame="true"
+					:uploadArgs="{ private: false }"
 					:placeholder="__('Type your question here')"
 					:fill="fillsHeight"
 					:minHeight="fillsHeight ? '6rem' : '5rem'"

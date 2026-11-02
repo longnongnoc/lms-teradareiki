@@ -299,8 +299,11 @@ const MANIFEST: Record<string, Privacy[]> = {
 	'components/Modals/JobApplicationModal.vue': ['private'],
 	'pages/Forms/ChapterForm.vue': ['private'],
 	'components/Notes/Notes.vue': ['private'],
-	// A quiz option image is served through the gated question resource endpoint.
-	'components/Quiz/QuestionAnswers.vue': ['private'],
+	// Question text and option images upload public: a private one added by
+	// anyone but the question's author is refused by serve_question_resource,
+	// so Preview and learners got a broken image.
+	'components/Quiz/QuestionAnswers.vue': ['public'],
+	'components/Quiz/QuestionEditor.vue': ['public'],
 	// A gateway's attachment keeps the privacy SettingsFields gave it before the
 	// form was hand-rolled: get_transformed_fields sets no `public` flag on any
 	// of them, so `:is_private="true"` here is what keeps it private.
@@ -315,7 +318,6 @@ const MANIFEST: Record<string, Privacy[]> = {
 	'components/DiscussionReplies.vue': ['undeclared', 'undeclared'],
 	'components/Modals/DiscussionModal.vue': ['undeclared'],
 	'components/Quiz.vue': ['undeclared'],
-	'components/Quiz/QuestionEditor.vue': ['undeclared'],
 	// SettingsFields draws its upload field ahead of its richtext field in
 	// document order, but openingTags groups matches by tag marker first, and
 	// RichTextEditor's marker sorts ahead of ImageUploadField's in
